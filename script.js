@@ -11,37 +11,45 @@ window.addEventListener('resize', () => {
 const sentences = [
   "When will you arrive at the station?",
   "I can’t believe how fast time goes by.",
-  "What do you usually do on weekends?",
+  "What are you doing right now?",
   "Could you help me carry these groceries inside?",
-  "I really enjoyed spending time with you today.",
+  "I have been waiting for you since morning.",
+  "She is reading a book.",
+  "They have been working all day.",
   "Let’s grab a coffee and talk for a while.",
   "Do you have any plans for this evening?",
   "It’s been a long day at the office.",
-  "I’d like to order the same as her.",
   "I’m looking forward to our trip next month.",
   "Can you recommend a good place to eat?"
 ];
-
-// 각 문장별 본동사 리스트(단어 소문자 기준)
-const mainVerbs = [
-  "arrive",    // 0
-  "believe",   // 1
-  "do",        // 2
-  "help",      // 3
-  "enjoyed",   // 4
-  "grab",      // 5
-  "have",      // 6
-  "been",      // 7
-  "like",      // 8
-  "looking",   // 9
-  "recommend"  // 10
+const translations = [
+  "너는 언제 역에 도착하니?",
+  "시간이 얼마나 빠르게 지나가는지 믿을 수 없어.",
+  "너 지금 뭐하고 있니?",
+  "이 식료품들을 안으로 옮기는 것 좀 도와줄 수 있니?",
+  "나는 아침부터 너를 기다리고 있었어.",
+  "그녀는 책을 읽고 있어.",
+  "그들은 하루 종일 일하고 있어.",
+  "커피 한 잔 하면서 잠시 이야기하자.",
+  "오늘 저녁에 계획 있는 거 있어?",
+  "오늘은 사무실에서 긴 하루였어.",
+  "다음 달 우리 여행이 기대돼.",
+  "맛있는 식당 좀 추천해줄 수 있어?"
 ];
 
 let sentenceIndex = Number(localStorage.getItem('sentenceIndex') || 0);
 
 const playerImg = new Image();
 playerImg.src = 'images/player.png';
-const enemyImgs = ['images/enemy1.png', 'images/enemy2.png'].map(src => {
+
+// enemy 이미지 5개
+const enemyImgs = [
+  'images/enemy1.png',
+  'images/enemy2.png',
+  'images/enemy3.png',
+  'images/enemy4.png',
+  'images/enemy5.png'
+].map(src => {
   const img = new Image();
   img.src = src;
   return img;
@@ -58,7 +66,6 @@ let bgmAudio = new Audio(bgmFiles[bgmIndex]);
 bgmAudio.volume = 0.05;
 bgmAudio.loop = false;
 
-// 볼륨 제어 관련
 const volumeBtn = document.getElementById('volumeBtn');
 let isMuted = false;
 function updateVolumeIcon() {
@@ -89,7 +96,6 @@ const sounds = {
 sounds.shoot.volume = 0.05;
 sounds.explosion.volume = 0.05;
 
-// 볼륨 자동상승 차단
 setInterval(() => {
   if (bgmAudio && bgmAudio.volume !== (isMuted ? 0 : 0.05)) {
     bgmAudio.volume = isMuted ? 0 : 0.05;
@@ -100,7 +106,7 @@ let assetsLoaded = false;
 let loadedImages = 0;
 function onImageLoad() {
   loadedImages++;
-  if (loadedImages >= 3) assetsLoaded = true;
+  if (loadedImages >= 6) assetsLoaded = true; // player 1 + enemy 5 = 6
 }
 playerImg.onload = onImageLoad;
 enemyImgs.forEach(img => img.onload = onImageLoad);
@@ -128,57 +134,159 @@ let centerAlpha = 1.0;
 let nextSentence = null;
 let sentenceActive = false;
 
-// 읽기 큐 로직
-let speakQueue = [];
-let isSpeaking = false;
+let showPlayButton = false;
+let playButtonRect = null;
+let showTranslation = false;
+let isActionLocked = false;
 
-async function getVoice(lang = 'en-US', gender = 'female') {
-  let voices = window.speechSynthesis.getVoices();
-  if (!voices.length) {
-    await new Promise(resolve => {
-      window.speechSynthesis.onvoiceschanged = resolve;
-    });
-    voices = window.speechSynthesis.getVoices();
+// ===== 색상 분류 함수들 =====
+const MODAL_AUX = [
+  "can","can't","cannot","could","couldn't","will","would","shall","should",
+  "may","might","must","won't","wouldn't","shan't","shouldn't","mayn't","mightn't","mustn't"
+];
+const DO_AUX = [
+  "do", "does", "did", "don't", "doesn't", "didn't"
+];
+const notVerbIng = [
+  "morning", "evening", "everything", "anything", "nothing", "something",
+  "building", "ceiling", "meeting", "feeling", "wedding", "clothing"
+];
+
+function isAux(word) {
+  return MODAL_AUX.includes(word.toLowerCase()) || DO_AUX.includes(word.toLowerCase());
+}
+function isWh(word) {
+  const whs = ["what","when","where","who","whom","whose","which","why","how"];
+  return whs.includes(word.toLowerCase());
+}
+function isVerb(word) {
+  const verbs = [
+    "arrive", "believe", "help", "carry", "enjoy", "spend", "grab", "talk", "order", "look", "recommend", "eat",
+    "plan", "make", "like", "love", "hate", "go", "read", "play", "work", "find", "get", "enjoyed", "forward", "wait"
+  ];
+  return verbs.includes(word.toLowerCase());
+}
+function isVing(word) {
+  let lw = word.toLowerCase();
+  if (notVerbIng.includes(lw)) return false;
+  if (/^[a-zA-Z]+ing$/.test(lw)) {
+    let base = lw.slice(0, -3);
+    return isVerb(base) || (base.endsWith('y') && isVerb(base.slice(0, -1) + 'ie'));
   }
-  const filtered = voices.filter(v =>
-    v.lang === lang &&
-    (gender === 'female'
-      ? v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('susan') || v.name.toLowerCase().includes('samantha')
-      : v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('man') || v.name.toLowerCase().includes('tom') || v.name.toLowerCase().includes('daniel'))
-  );
-  if (filtered.length) return filtered[0];
-  const fallback = voices.filter(v => v.lang === lang);
-  return fallback.length ? fallback[0] : null;
+  return false;
+}
+function isBeen(word) {
+  return word.toLowerCase() === 'been';
+}
+function isQuestion(sentence) {
+  return sentence.trim().endsWith('?');
 }
 
-async function speakSentence(text, gender = 'female') {
-  await getVoice();
-  return new Promise(async resolve => {
-    const utter = new window.SpeechSynthesisUtterance(text);
-    utter.lang = 'en-US';
-    utter.rate = 1.0;
-    utter.pitch = gender === 'female' ? 1.08 : 1.0;
-    utter.voice = await getVoice('en-US', gender);
-    utter.onend = resolve;
-    window.speechSynthesis.speak(utter);
+// ===== 중앙 문장 렌더링 =====
+function drawCenterSentence() {
+  if (!centerSentence) return;
+
+  ctx.save();
+  ctx.globalAlpha = centerAlpha;
+  ctx.font = "23.52px Arial";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  let lines = [centerSentence.line1, centerSentence.line2];
+
+  let lineHeight = 30;
+  let blockHeight = lines.length * lineHeight;
+  let yBase = canvas.height / 2 - blockHeight / 2 + lineHeight / 2;
+
+  const playSize = 36 * 0.49;
+  const btnPad = 18 * 0.49;
+  const btnH = playSize + btnPad * 2;
+  const btnW = playSize + btnPad * 2;
+  const btnY = canvas.height / 2 - 15 - 20 + 10 + 5;
+  const btnX = 10;
+  playButtonRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+  if (showPlayButton) {
+    ctx.save();
+    ctx.globalAlpha = 0.82;
+    ctx.fillStyle = "#222";
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnW, btnH, 20 * 0.49);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#4CAF50";
+    ctx.lineWidth = 3 * 0.49;
+    ctx.stroke();
+    ctx.fillStyle = "#4CAF50";
+    ctx.beginPath();
+    ctx.moveTo(btnX + btnPad + 6 * 0.49, btnY + btnPad);
+    ctx.lineTo(btnX + btnPad + 6 * 0.49, btnY + btnH - btnPad);
+    ctx.lineTo(btnX + btnPad + playSize, btnY + btnH / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  let verbColored = false;
+  const isQ = isQuestion((centerSentence.line1 + " " + centerSentence.line2).trim());
+  for (let i = 0; i < lines.length; i++) {
+    const words = lines[i].split(" ");
+    let wordWidths = words.map(w => ctx.measureText(w).width);
+    let spaceWidth = ctx.measureText(" ").width;
+    let totalWidth = wordWidths.reduce((a, b) => a + b, 0) + spaceWidth * (words.length - 1);
+    let x = (canvas.width - totalWidth) / 2;
+    let y = yBase + i * lineHeight;
+
+    for (let j = 0; j < words.length; j++) {
+      let raw = words[j];
+      let word = raw.replace(/[^a-zA-Z']/g, "");
+      let lower = word.toLowerCase();
+      let color = "#fff";
+      if (isQ && i === 0 && j === 0 && (isAux(lower) || isWh(lower))) {
+        color = "#40b8ff";
+      } else if (isVerb(lower) && !verbColored) {
+        color = "#FFD600";
+        verbColored = true;
+      } else if (isAux(lower) || isBeen(lower)) {
+        color = "#40b8ff";
+      } else if (isVing(lower)) {
+        color = "#40b8ff";
+      }
+      ctx.fillStyle = color;
+      ctx.fillText(raw, x, y);
+      x += wordWidths[j] + spaceWidth;
+    }
+  }
+
+  if (showTranslation) {
+    ctx.save();
+    ctx.font = "18.9px Arial"; // 21px에서 10% 줄임
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#FFD600";
+    ctx.shadowColor = "#111";
+    ctx.shadowBlur = 4;
+    ctx.fillText(
+      translations[centerSentenceIndex !== null ? centerSentenceIndex : (sentenceIndex === 0 ? sentences.length - 1 : sentenceIndex - 1)],
+      canvas.width / 2,
+      yBase + lines.length * lineHeight + 10
+    );
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawFireworks() {
+  if (!fireworks) return;
+  ctx.save();
+  ctx.font = "23.52px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  fireworks.forEach(fw => {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = fw.color;
+    ctx.fillText(fw.text, fw.x, fw.y);
   });
+  ctx.restore();
 }
-
-// 읽기 큐를 "최신 문장만" 읽게 개조
-async function speakQueueRunner() {
-  if (isSpeaking) return;
-  isSpeaking = true;
-  while (speakQueue.length > 0) {
-    const idx = speakQueue.shift();
-    const sentence = sentences[idx];
-    await new Promise(r => setTimeout(r, 1000)); // 1초 후 읽기
-    await speakSentence(sentence, 'female');
-    await new Promise(r => setTimeout(r, 1500));
-    await speakSentence(sentence, 'male');
-  }
-  isSpeaking = false;
-}
-
 function splitSentence(sentence) {
   const words = sentence.split(" ");
   const half = Math.ceil(words.length / 2);
@@ -186,11 +294,9 @@ function splitSentence(sentence) {
   const line2 = words.slice(half).join(" ");
   return [line1, line2];
 }
-
 function getClockwiseAngle(index, total) {
   return -Math.PI / 2 + (index * 2 * Math.PI) / total;
 }
-
 function startFireworks(sentence, fx, fy) {
   const [line1, line2] = splitSentence(sentence);
   const lines = [line1, line2];
@@ -241,8 +347,8 @@ function startFireworks(sentence, fx, fy) {
   }
   sentenceActive = true;
   centerAlpha = 1.0;
+  showTranslation = false;
 }
-
 function updateFireworks() {
   if (!fireworks) return false;
 
@@ -288,87 +394,51 @@ function updateFireworks() {
       fireworks = null;
       fireworksState = null;
       sentenceActive = false;
-      let idx = sentenceIndex === 0 ? sentences.length - 1 : sentenceIndex - 1;
+      showPlayButton = true;
+      showTranslation = false;
 
-      window.speechSynthesis.cancel();
-      speakQueue = [idx];
-      isSpeaking = false;
-      speakQueueRunner();
+      setTimeout(() => {
+        let idx = centerSentenceIndex;
+        if (idx == null) idx = (sentenceIndex === 0 ? sentences.length - 1 : sentenceIndex - 1);
+        window.speechSynthesis.cancel();
+        speakSentence(sentences[idx], 'female').then(() => {
+          setTimeout(() => {
+            speakSentence(sentences[idx], 'male');
+          }, 800);
+        });
+      }, 800);
     }
   }
 }
-
-function drawCenterSentence() {
-  if (!centerSentence) return;
-  ctx.save();
-  ctx.globalAlpha = centerAlpha;
-  ctx.font = "23.52px Arial";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-
-  const blueWords = [
-    "when","where","what","why","how","who","which",
-    "will","would","can","could","may","should","must","might","shall",
-    "do","does","did","have","has","had","is","are","was","were","am",
-    "won't","wont","wouldn't","wouldnt","can't","cant","cannot","couldn't","couldnt",
-    "shouldn't","shouldnt","mustn't","mustnt","mightn't","mightnt","shan't","shant",
-    "needn't","neednt","oughtn't","oughtnt","isn't","isnt","aren't","arent",
-    "wasn't","wasnt","weren't","werent","don't","dont","doesn't","doesnt",
-    "didn't","didnt","haven't","havent","hasn't","hasnt","hadn't","hadnt"
-  ];
-
-  let lines = [centerSentence.line1, centerSentence.line2];
-  let yBase = canvas.height / 2 - 25;
-
-  let currentIdx = centerSentenceIndex !== null ? centerSentenceIndex : (sentenceIndex === 0 ? sentences.length - 1 : sentenceIndex - 1);
-  let mainVerb = mainVerbs[currentIdx];
-  let foundVerb = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    let words = lines[i].split(" ");
-    let totalWidth = 0;
-    let wordWidths = [];
-    for (let w = 0; w < words.length; w++) {
-      wordWidths[w] = ctx.measureText(words[w]).width;
-      totalWidth += wordWidths[w];
-      if (w < words.length - 1) totalWidth += ctx.measureText(" ").width;
-    }
-    let px = canvas.width / 2 - totalWidth / 2;
-    for (let w = 0; w < words.length; w++) {
-      const lower = words[w].toLowerCase().replace(/[.,?’']/g, '');
-
-      if (!foundVerb && lower === mainVerb) {
-        ctx.fillStyle = "#FFD600";
-        foundVerb = true;
-      }
-      else if (w === 0 && blueWords.includes(lower)) {
-        ctx.fillStyle = "#40A6FF";
-      }
-      else if (blueWords.includes(lower)) {
-        ctx.fillStyle = "#40A6FF";
-      } else {
-        ctx.fillStyle = "#fff";
-      }
-      ctx.fillText(words[w], px, yBase + i * 30);
-      px += wordWidths[w];
-      if (w < words.length - 1) px += ctx.measureText(" ").width;
-    }
+async function getVoice(lang = 'en-US', gender = 'female') {
+  let voices = window.speechSynthesis.getVoices();
+  if (!voices.length) {
+    await new Promise(resolve => {
+      window.speechSynthesis.onvoiceschanged = resolve;
+    });
+    voices = window.speechSynthesis.getVoices();
   }
-  ctx.restore();
+  const filtered = voices.filter(v =>
+    v.lang === lang &&
+    (gender === 'female'
+      ? v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('susan') || v.name.toLowerCase().includes('samantha')
+      : v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('man') || v.name.toLowerCase().includes('tom') || v.name.toLowerCase().includes('daniel'))
+  );
+  if (filtered.length) return filtered[0];
+  const fallback = voices.filter(v => v.lang === lang);
+  return fallback.length ? fallback[0] : null;
 }
-
-function drawFireworks() {
-  if (!fireworks) return;
-  ctx.save();
-  ctx.font = "23.52px Arial";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  fireworks.forEach(fw => {
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = fw.color;
-    ctx.fillText(fw.text, fw.x, fw.y);
+async function speakSentence(text, gender = 'female') {
+  await getVoice();
+  return new Promise(async resolve => {
+    const utter = new window.SpeechSynthesisUtterance(text);
+    utter.lang = 'en-US';
+    utter.rate = 1.0;
+    utter.pitch = gender === 'female' ? 1.08 : 1.0;
+    utter.voice = await getVoice('en-US', gender);
+    utter.onend = resolve;
+    window.speechSynthesis.speak(utter);
   });
-  ctx.restore();
 }
 
 function spawnEnemy() {
@@ -376,107 +446,8 @@ function spawnEnemy() {
   const img = enemyImgs[idx];
   const x = Math.random() * (canvas.width - ENEMY_SIZE);
   const y = Math.random() * canvas.height * 0.2 + 20;
-  enemies.push({ x, y, w: ENEMY_SIZE, h: ENEMY_SIZE, img, shot: false });
+  enemies.push({ x, y, w: ENEMY_SIZE, h: ENEMY_SIZE, img, shot: false, imgIndex: idx });
 }
-
-function startGame() {
-  if (!assetsLoaded) {
-    alert("이미지 로딩 중입니다. 잠시 후 다시 시도하세요.");
-    return;
-  }
-  isGameRunning = true;
-  isGamePaused = false;
-  try {
-    bgmAudio.pause();
-    bgmAudio.currentTime = 0;
-  } catch (e) {}
-  bgmIndex = 0;
-  bgmAudio = new Audio(bgmFiles[bgmIndex]);
-  bgmAudio.volume = isMuted ? 0 : 0.05;
-  bgmAudio.loop = false;
-  bgmAudio.addEventListener('ended', playNextBgm);
-  bgmAudio.play();
-
-  bullets = [];
-  enemies = [];
-  enemyBullets = [];
-  fireworks = null;
-  fireworksState = null;
-  centerSentence = null;
-  centerSentenceIndex = null;
-  sentenceActive = false;
-  centerAlpha = 1.0;
-  speakQueue = [];
-  isSpeaking = false;
-
-  spawnEnemy();
-  spawnEnemy();
-
-  player.x = canvas.width / 2 - PLAYER_SIZE / 2;
-  player.y = canvas.height - PLAYER_SIZE - 10;
-
-  lastTime = performance.now();
-  requestAnimationFrame(gameLoop);
-}
-
-function togglePause() {
-  if (!isGameRunning) return;
-  isGamePaused = !isGamePaused;
-  if (isGamePaused) {
-    bgmAudio.pause();
-  } else {
-    bgmAudio.play();
-    requestAnimationFrame(gameLoop);
-  }
-}
-
-function stopGame() {
-  isGameRunning = false;
-  isGamePaused = false;
-  bgmAudio.pause();
-  window.speechSynthesis.cancel();
-
-  bullets = [];
-  enemies = [];
-  enemyBullets = [];
-  fireworks = null;
-  fireworksState = null;
-  centerSentence = null;
-  centerSentenceIndex = null;
-  centerAlpha = 0;
-  sentenceActive = false;
-  speakQueue = [];
-  isSpeaking = false;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
-
-canvas.addEventListener('touchstart', e => {
-  if (!isGameRunning || isGamePaused) return;
-  const touch = e.touches[0];
-  player.x = touch.clientX - player.w / 2;
-  player.y = touch.clientY - player.h / 2;
-  bullets.push({
-    x: player.x + player.w / 2 - 2.5,
-    y: player.y,
-    w: 5,
-    h: 10,
-    speed: 2.1
-  });
-  sounds.shoot.play();
-  e.preventDefault();
-}, { passive: false });
-
-canvas.addEventListener('touchmove', e => {
-  if (!isGameRunning || isGamePaused) return;
-  const touch = e.touches[0];
-  player.x = touch.clientX - player.w / 2;
-  player.y = touch.clientY - player.h / 2;
-  player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
-  player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
-  e.preventDefault();
-}, { passive: false });
-
 function update(delta) {
   enemies = enemies.filter(e => e.y <= canvas.height);
   while (enemies.length < 2) spawnEnemy();
@@ -504,29 +475,250 @@ function update(delta) {
   });
 
   if (fireworks) updateFireworks();
-}
 
+  if (!centerSentence) {
+    showPlayButton = false;
+    showTranslation = false;
+    isActionLocked = false;
+  }
+}
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
-  enemies.forEach(e => ctx.drawImage(e.img, e.x, e.y, e.w, e.h));
+
+  enemies.forEach(e => {
+    // enemy2.png (index 1)만 30% 크게
+    if (e.imgIndex === 1) {
+      const w = ENEMY_SIZE * 1.3;
+      const h = ENEMY_SIZE * 1.3;
+      ctx.drawImage(e.img, e.x - (w - ENEMY_SIZE) / 2, e.y - (h - ENEMY_SIZE) / 2, w, h);
+    } else {
+      ctx.drawImage(e.img, e.x, e.y, ENEMY_SIZE, ENEMY_SIZE);
+    }
+  });
+
   ctx.fillStyle = 'red';
   bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
   drawCenterSentence();
-  drawFireworks();
+  if (fireworks) drawFireworks();
 }
-
 function gameLoop(time) {
   if (!isGameRunning || isGamePaused) return;
   const delta = time - lastTime;
   lastTime = time;
-
   update(delta);
   draw();
-
   requestAnimationFrame(gameLoop);
 }
-
 document.getElementById('startBtn').onclick = startGame;
 document.getElementById('pauseBtn').onclick = togglePause;
 document.getElementById('stopBtn').onclick = stopGame;
+function startGame() {
+  if (!assetsLoaded) {
+    alert("이미지 로딩 중입니다. 잠시 후 다시 시도하세요.");
+    return;
+  }
+  isGameRunning = true;
+  isGamePaused = false;
+  try {
+    bgmAudio.pause();
+    bgmAudio.currentTime = 0;
+  } catch (e) {}
+  bgmIndex = 0;
+  bgmAudio = new Audio(bgmFiles[bgmIndex]);
+  bgmAudio.volume = isMuted ? 0 : 0.05;
+  bgmAudio.loop = false;
+  bgmAudio.addEventListener('ended', playNextBgm);
+  bgmAudio.play();
+
+  bullets = [];
+  enemies = [];
+  enemyBullets = [];
+  fireworks = null;
+  fireworksState = null;
+  centerSentence = null;
+  centerSentenceIndex = null;
+  sentenceActive = false;
+  centerAlpha = 1.0;
+  showPlayButton = false;
+  playButtonRect = null;
+  showTranslation = false;
+  isActionLocked = false;
+
+  spawnEnemy();
+  spawnEnemy();
+
+  player.x = canvas.width / 2 - PLAYER_SIZE / 2;
+  player.y = canvas.height - PLAYER_SIZE - 10;
+
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+function togglePause() {
+  if (!isGameRunning) return;
+  isGamePaused = !isGamePaused;
+  if (isGamePaused) {
+    bgmAudio.pause();
+  } else {
+    bgmAudio.play();
+    requestAnimationFrame(gameLoop);
+  }
+}
+function stopGame() {
+  isGameRunning = false;
+  isGamePaused = false;
+  bgmAudio.pause();
+  window.speechSynthesis.cancel();
+
+  bullets = [];
+  enemies = [];
+  enemyBullets = [];
+  fireworks = null;
+  fireworksState = null;
+  centerSentence = null;
+  centerSentenceIndex = null;
+  centerAlpha = 0;
+  sentenceActive = false;
+  showPlayButton = false;
+  playButtonRect = null;
+  showTranslation = false;
+  isActionLocked = false;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+const expandedMargin = 10;
+
+canvas.addEventListener('touchstart', e => {
+  if (!isGameRunning || isGamePaused) return;
+  if (isActionLocked) return;
+  const touch = e.touches[0];
+  const isPlayBtnTouched = showPlayButton && playButtonRect &&
+    touch.clientX >= (playButtonRect.x - expandedMargin) &&
+    touch.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+    touch.clientY >= (playButtonRect.y - expandedMargin) &&
+    touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
+
+  if (isPlayBtnTouched) {
+    showTranslation = true;
+    isActionLocked = true;
+    let idx = centerSentenceIndex;
+    if (idx == null) idx = (sentenceIndex === 0 ? sentences.length - 1 : sentenceIndex - 1);
+    window.speechSynthesis.cancel();
+    speakSentence(sentences[idx], 'female').then(() => {
+      setTimeout(() => {
+        speakSentence(sentences[idx], 'male');
+      }, 800);
+    });
+    e.preventDefault();
+    setTimeout(() => { isActionLocked = false; }, 200);
+    return;
+  }
+  player.x = touch.clientX - player.w / 2;
+  player.y = touch.clientY - player.h / 2;
+  bullets.push({
+    x: player.x + player.w / 2 - 2.5,
+    y: player.y,
+    w: 5,
+    h: 10,
+    speed: 2.1
+  });
+  sounds.shoot.play();
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('mousedown', e => {
+  if (!isGameRunning || isGamePaused) return;
+  if (isActionLocked) return;
+  const isPlayBtnTouched = showPlayButton && playButtonRect &&
+    e.clientX >= (playButtonRect.x - expandedMargin) &&
+    e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+    e.clientY >= (playButtonRect.y - expandedMargin) &&
+    e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
+
+  if (isPlayBtnTouched) {
+    showTranslation = true;
+    isActionLocked = true;
+    let idx = centerSentenceIndex;
+    if (idx == null) idx = (sentenceIndex === 0 ? sentences.length - 1 : sentenceIndex - 1);
+    window.speechSynthesis.cancel();
+    speakSentence(sentences[idx], 'female').then(() => {
+      setTimeout(() => {
+        speakSentence(sentences[idx], 'male');
+      }, 800);
+    });
+    e.preventDefault();
+    setTimeout(() => { isActionLocked = false; }, 200);
+    return;
+  }
+  player.x = e.clientX - player.w / 2;
+  player.y = e.clientY - player.h / 2;
+  bullets.push({
+    x: player.x + player.w / 2 - 2.5,
+    y: player.y,
+    w: 5,
+    h: 10,
+    speed: 2.1
+  });
+  sounds.shoot.play();
+  e.preventDefault();
+});
+
+canvas.addEventListener('touchmove', e => {
+  if (!isGameRunning || isGamePaused) return;
+  if (isActionLocked) return;
+  const touch = e.touches[0];
+  if (showPlayButton && playButtonRect) {
+    if (
+      touch.clientX >= (playButtonRect.x - expandedMargin) &&
+      touch.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+      touch.clientY >= (playButtonRect.y - expandedMargin) &&
+      touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin)
+    ) {
+      e.preventDefault();
+      return;
+    }
+  }
+  if (!showPlayButton ||
+      (showPlayButton && playButtonRect &&
+       !(
+         touch.clientX >= (playButtonRect.x - expandedMargin) &&
+         touch.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+         touch.clientY >= (playButtonRect.y - expandedMargin) &&
+         touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin)
+       ))) {
+    player.x = touch.clientX - player.w / 2;
+    player.y = touch.clientY - player.h / 2;
+    player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+    player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
+    e.preventDefault();
+  }
+}, { passive: false });
+
+canvas.addEventListener('mousemove', e => {
+  if (!isGameRunning || isGamePaused) return;
+  if (isActionLocked) return;
+  if (showPlayButton && playButtonRect) {
+    if (
+      e.clientX >= (playButtonRect.x - expandedMargin) &&
+      e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+      e.clientY >= (playButtonRect.y - expandedMargin) &&
+      e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin)
+    ) {
+      return;
+    }
+  }
+  if (!showPlayButton ||
+      (showPlayButton && playButtonRect &&
+       !(
+         e.clientX >= (playButtonRect.x - expandedMargin) &&
+         e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+         e.clientY >= (playButtonRect.y - expandedMargin) &&
+         e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin)
+       ))) {
+    player.x = e.clientX - player.w / 2;
+    player.y = e.clientY - player.h / 2;
+    player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+    player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
+  }
+});
