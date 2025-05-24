@@ -225,7 +225,7 @@ const translations = [
   "누가 간식 소풍에 우리와 함께하지 못했나요?", // 93.txt 번역 예시
   "그는 감기에 걸려서 우리와 함께하지 못했어요.", // 94.txt 번역 예시
   "양말이 젖지 않게 하려면 어떻게 해야 했을까요?", // 95.txt 번역 예시
-  "장화를 신지 않고는 마른 상태로 유지할 수 없었어요." // 96.txt 번역 예시
+  "장화를 신지 않고는 마른 상태로 유지할 수 없었어요." // 96.txt
 ];
 // --- END: 새로운 96개 한국어 번역 ---
 
@@ -971,7 +971,6 @@ function updateFireworks() {
         let spaceWidth = tempCtx.measureText(" ").width;
         let totalLineWidth = wordMetrics.reduce((sum, m) => sum + m.width, 0) + spaceWidth * (wordsInLine.length - 1);
         
-        // 불꽃놀이 단어의 최종 X 위치도 항상 중앙 정렬
         let currentXTargetForLine = (canvas.width - totalLineWidth) / 2;
         
         for (let j = 0; j < wordsInLine.length; j++) {
@@ -993,7 +992,7 @@ function updateFireworks() {
         const roleOfNewSentence = fireworksState.roleOfNewSentence; 
         const [newLine1, newLine2] = splitSentence(newSentenceText);
         const newSentenceObject = { line1: newLine1, line2: newLine2 };
-        let playAudioForThisSentence = false;
+        let playAudioForThisSentence = false; // 초기화
 
         if (roleOfNewSentence === 'question') {
             currentQuestionSentence = newSentenceObject;
@@ -1001,7 +1000,8 @@ function updateFireworks() {
             currentAnswerSentence = null; 
             currentAnswerSentenceIndex = null;
             showPlayButton = false;
-        } else { 
+            playAudioForThisSentence = true; // 질문 문장도 오디오 재생
+        } else { // roleOfNewSentence === 'answer'
             const questionIndexOfThisAnswer = newSentenceIndex - 1;
             if (questionIndexOfThisAnswer >= 0 && sentences[questionIndexOfThisAnswer]) {
                 if (!currentQuestionSentence || currentQuestionSentenceIndex !== questionIndexOfThisAnswer) {
@@ -1012,11 +1012,9 @@ function updateFireworks() {
             } else {
                 currentQuestionSentence = null;
                 currentQuestionSentenceIndex = null;
-                // console.warn(`Orphaned Answer at index ${newSentenceIndex} cannot find its question.`);
             }
             currentAnswerSentence = newSentenceObject;
             currentAnswerSentenceIndex = newSentenceIndex;
-            // 답변 문장이 있으면 항상 플레이 버튼을 보여주도록 수정 (질문 유무와 관계 없이)
             showPlayButton = true; 
             playAudioForThisSentence = true; 
         }
@@ -1029,12 +1027,22 @@ function updateFireworks() {
         activeWordTranslation = null;
         if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
 
-        if (playAudioForThisSentence && currentAnswerSentenceIndex !== null) {
-            setTimeout(() => {
-                window.speechSynthesis.cancel();
-                playSentenceAudio(currentAnswerSentenceIndex)
-                    .catch(err => console.error("Error playing sentence audio from fireworks:", err));
-            }, 300);
+        // 오디오 재생 로직 수정
+        if (playAudioForThisSentence) {
+            let audioIndexToPlay = null;
+            if (roleOfNewSentence === 'question' && currentQuestionSentenceIndex !== null) {
+                audioIndexToPlay = currentQuestionSentenceIndex;
+            } else if (roleOfNewSentence === 'answer' && currentAnswerSentenceIndex !== null) {
+                audioIndexToPlay = currentAnswerSentenceIndex;
+            }
+
+            if (audioIndexToPlay !== null) {
+                setTimeout(() => {
+                    window.speechSynthesis.cancel(); // 이전 음성 출력이 있다면 취소
+                    playSentenceAudio(audioIndexToPlay)
+                        .catch(err => console.error(`Error playing sentence audio for index ${audioIndexToPlay} from fireworks:`, err));
+                }, 300); // 문장이 완전히 나타난 후 재생되도록 약간의 딜레이
+            }
         }
     }
   }
@@ -1101,10 +1109,6 @@ function update(delta) {
 
   if (sentenceActive) updateFireworks();
 
-  // 플레이 버튼 표시 로직을 updateFireworks의 'done' 단계에서 처리하도록 변경했으므로,
-  // 여기서는 명시적으로 showPlayButton을 false로 설정하는 부분만 남겨두거나,
-  // 해당 로직을 fireworksState.phase === 'done' 이후 상태에 따라 결정하도록 할 수 있습니다.
-  // 현재는 fireworks 'done' 상태에서 showPlayButton이 결정되므로, 아래 조건은 일부 중복될 수 있습니다.
   if (!currentQuestionSentence && !currentAnswerSentence && !sentenceActive) {
     showPlayButton = false; 
     showTranslation = false;
@@ -1330,13 +1334,8 @@ function handleCanvasInteraction(clientX, clientY, event) {
     return;
   }
 
-  // 단어 클릭 로직은 showPlayButton 조건과 무관하게 문장이 표시되어 있을 때 항상 작동하도록 할 수 있습니다.
-  // 또는 showPlayButton이 true일 때만 작동하도록 유지할 수도 있습니다. (현재 로직 유지)
   if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
-      // showPlayButton 조건을 제거하여 질문만 있을 때도 단어 클릭이 가능하도록 할 수 있으나,
-      // 현재는 플레이 버튼이 있을 때(즉, 답변이 있을 때)만 단어 클릭이 활성화되는 것으로 보입니다.
-      // 요청에 따라 이 부분을 수정할 수 있습니다. 지금은 기존 로직 유지.
-      if (showPlayButton) {
+      if (showPlayButton) { // Ensure play button (and thus usually an answer) is contextually relevant for word clicks
         for (const wordRect of centerSentenceWordRects) {
           if (
             clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
@@ -1408,7 +1407,6 @@ canvas.addEventListener('touchmove', e => {
     touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
   if (isOverPlayBtn) return;
 
-  // 단어 위로 드래그 시 플레이어 이동 방지 로직도 showPlayButton 조건과 연동될 수 있음.
   if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
     for (const wordRect of centerSentenceWordRects) {
       if (
@@ -1429,23 +1427,23 @@ canvas.addEventListener('mousemove', e => {
   if (isActionLocked && (e.buttons !== 1) ) return;
   if (sentenceActive && (e.buttons !==1)) return;
 
-  if (e.buttons !== 1) { // 마우스 버튼이 눌리지 않은 상태에서의 이동 (hover)
+  if (e.buttons !== 1) { 
     const isOverPlayBtn = showPlayButton && playButtonRect &&
         e.clientX >= (playButtonRect.x - expandedMargin) &&
         e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
         e.clientY >= (playButtonRect.y - expandedMargin) &&
         e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-    if (isOverPlayBtn) return; // 플레이 버튼 위에 있으면 플레이어 이동 안 함
+    if (isOverPlayBtn) return; 
      
     if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
       for (const wordRect of centerSentenceWordRects) {
         if (
           e.clientX >= wordRect.x && e.clientX <= wordRect.x + wordRect.w &&
           e.clientY >= wordRect.y - wordRect.h/2 && e.clientY <= wordRect.y + wordRect.h/2
-        ) { return; } // 단어 위에 있으면 플레이어 이동 안 함
+        ) { return; } 
       }
     }
-  } // 마우스 버튼이 눌린 상태 (드래그)에서는 이 검사를 건너뛰고 플레이어 위치 업데이트
+  } 
 
   player.x = e.clientX - player.w / 2;
   player.y = e.clientY - player.h / 2;
@@ -1458,16 +1456,4 @@ window.addEventListener('load', () => {
     let storedIndex = Number(localStorage.getItem('sentenceIndex') || 0);
     sentenceIndex = storedIndex % sentences.length;
     localStorage.setItem('sentenceIndex', sentenceIndex.toString());
-
-    // startFireworks 함수 내에서 roleOfNewSentence === 'answer'일 때,
-    // questionTextForLayout이 비어있으면 답변 문장도 질문처럼 중앙 정렬되도록 하는 로직 추가
-    // (startFireworks 함수 내 wordTargetY 계산 로직에 이미 반영됨)
-
-    // updateFireworks 함수 내에서 roleOfNewSentence === 'answer'일 때,
-    // currentQuestionSentence가 없더라도 showPlayButton = true가 되도록 수정
-    // (updateFireworks 함수 내 fireworksState.phase === "done" 부분에서 showPlayButton = true; 로 수정됨)
-
-    // 만약, 게임 시작 시 또는 특정 조건에서 바로 답변 문장만 표시해야 하는 경우가 있다면,
-    // 해당 시점에 currentQuestionSentence = null, currentAnswerSentence = {답변 내용}으로 설정하고
-    // showPlayButton = true로 설정한 후 drawCenterSentence()를 호출하면 됩니다.
 });
