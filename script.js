@@ -638,17 +638,10 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
         let wordMetrics = words.map(w => ctx.measureText(w));
         let spaceWidth = ctx.measureText(" ").width;
         let totalLineWidth = wordMetrics.reduce((sum, m) => sum + m.width, 0) + spaceWidth * (words.length - 1);
+        
+        // 항상 화면 중앙에 정렬
         let currentX = (canvas.width - totalLineWidth) / 2;
-        if (!isQuestionBlock && playButtonRect) {
-             currentX = Math.max(currentX, playButtonRect.x + playButtonRect.w + 10);
-             totalLineWidth = wordMetrics.reduce((sum, m) => sum + m.width, 0) + spaceWidth * (words.length - 1);
-             let sentenceAreaWidth = canvas.width - (playButtonRect.x + playButtonRect.w + 10) -10;
-             if (totalLineWidth < sentenceAreaWidth) {
-                currentX = (playButtonRect.x + playButtonRect.w + 10) + (sentenceAreaWidth - totalLineWidth) / 2;
-             } else {
-                currentX = playButtonRect.x + playButtonRect.w + 10;
-             }
-        }
+
         const wordHeight = parseFloat(englishFont.match(/(\d*\.?\d*)px/)[1]);
         for (let j = 0; j < words.length; j++) {
             let rawWord = words[j];
@@ -690,9 +683,10 @@ function drawCenterSentence() {
     ctx.save();
     ctx.globalAlpha = centerAlpha;
     const mainRenderAreaYCenter = topOffset + (canvas.height - topOffset) / 2;
-    const questionBlockCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT;
+    const questionBlockCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT; 
+
     let questionBlockContext = { verbColored: false };
-    let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] };
+    let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] }; 
 
     if (currentQuestionSentence) {
         questionDrawOutput = drawSingleSentenceBlock(currentQuestionSentence, questionBlockCenterY, true, questionBlockContext);
@@ -700,15 +694,23 @@ function drawCenterSentence() {
     }
 
     if (currentAnswerSentence) {
-        const answerBlockTopY = questionDrawOutput.lastY + ANSWER_OFFSET_Y;
         const answerLines = [currentAnswerSentence.line1, currentAnswerSentence.line2].filter(l => l && l.trim());
         const answerBlockHeight = answerLines.length * LINE_HEIGHT;
-        const playButtonActualCenterY = answerBlockTopY + answerBlockHeight / 2;
+        
+        let topYForAnswerBlock;
+
+        if (currentQuestionSentence) {
+            topYForAnswerBlock = questionDrawOutput.lastY + ANSWER_OFFSET_Y;
+        } else {
+            topYForAnswerBlock = questionBlockCenterY - (answerBlockHeight / 2);
+        }
+
+        const playButtonActualCenterY = topYForAnswerBlock + answerBlockHeight / 2;
         const playSize = 36 * 0.49;
         const btnPad = 18 * 0.49;
         const btnH = playSize + btnPad * 2;
         const btnW = playSize + btnPad * 2;
-        const btnX = 10;
+        const btnX = 10; // 플레이 버튼의 X 위치 (왼쪽 여백)
         playButtonRect = { x: btnX, y: playButtonActualCenterY - btnH / 2, w: btnW, h: btnH };
 
         if (showPlayButton) {
@@ -731,8 +733,9 @@ function drawCenterSentence() {
             ctx.fill();
             ctx.restore();
         }
+        
         let answerBlockContext = { verbColored: false };
-        const answerDrawOutput = drawSingleSentenceBlock(currentAnswerSentence, answerBlockTopY, false, answerBlockContext);
+        const answerDrawOutput = drawSingleSentenceBlock(currentAnswerSentence, topYForAnswerBlock, false, answerBlockContext);
         centerSentenceWordRects.push(...answerDrawOutput.wordRects);
 
         if (showTranslation && currentAnswerSentenceIndex !== null && translations[currentAnswerSentenceIndex]) {
@@ -783,6 +786,7 @@ function drawCenterSentence() {
     ctx.restore();
 }
 
+
 function drawFireworks() {
   if (!fireworks) return;
   ctx.save();
@@ -817,14 +821,12 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
     let roleOfNewSentence;
     let questionTextForLayout = "";
 
-    // Determine role based on the globalSentenceIndex (even for Q, odd for A)
-    if (globalSentenceIndex % 2 === 0) { // This sentence IS a question
+    if (globalSentenceIndex % 2 === 0) { 
         roleOfNewSentence = 'question';
-    } else { // This sentence IS an answer
+    } else { 
         roleOfNewSentence = 'answer';
     }
 
-    // Clear state and set up layout text based on the determined role
     if (roleOfNewSentence === 'question') {
         currentQuestionSentence = null;
         currentAnswerSentence = null;
@@ -832,30 +834,24 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
         currentAnswerSentenceIndex = null;
         showPlayButton = false;
         showTranslation = false;
-        // questionTextForLayout is not strictly needed for a new question itself
-    } else { // roleOfNewSentence === 'answer'
-        // Prepare questionTextForLayout for positioning the answer fireworks
-        // This question should be the one currently displayed or the one preceding this answer in the array
+    } else { 
         if (currentQuestionSentence && currentQuestionSentenceIndex === globalSentenceIndex - 1) {
             questionTextForLayout = (currentQuestionSentence.line1 + " " + currentQuestionSentence.line2).trim();
         } else if (globalSentenceIndex > 0 && sentences[globalSentenceIndex - 1]) {
             questionTextForLayout = sentences[globalSentenceIndex - 1];
-             // If currentQuestionSentence is not the one we expect, it will be corrected in updateFireworks.done
         } else {
-            questionTextForLayout = " "; // Fallback
+            questionTextForLayout = " "; 
             console.warn("Answer sentence firework initiated without a clear preceding question for layout.");
         }
-        // Clear only the answer part of the state; question part (if any) is preserved for now
         currentAnswerSentence = null;
         currentAnswerSentenceIndex = null;
         showTranslation = false;
     }
 
-    // Common UI clears for active fireworks
     if (activeWordTranslation) activeWordTranslation.show = false;
     activeWordTranslation = null;
     if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-    centerSentenceWordRects = []; // Clear word rects for firework display
+    centerSentenceWordRects = []; 
 
     const [fireworkLine1, fireworkLine2] = splitSentence(sentenceTextForFireworks);
     const wordsForFireworks = [];
@@ -884,7 +880,7 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
         originX: centerX,
         originY: explosionY,
         sentenceTextToDisplayAfter: sentenceTextForFireworks,
-        finalSentenceIndex: globalSentenceIndex, // This is the index of the sentence being animated
+        finalSentenceIndex: globalSentenceIndex, 
         roleOfNewSentence: roleOfNewSentence,
     };
 
@@ -901,14 +897,19 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
         if (roleOfNewSentence === 'question') {
             const qBlockFinalCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT;
             wordTargetY = qBlockFinalCenterY - sentenceBlockFinalHeight_fw / 2 + (wordsForFireworks[j].row * LINE_HEIGHT) + (LINE_HEIGHT / 2);
-        } else { // roleOfNewSentence === 'answer'
-            // Use questionTextForLayout to determine the Y position for the answer
+        } else { 
             const [qTextL1_layout, qTextL2_layout] = splitSentence(questionTextForLayout);
             const qTextLines_layout = [qTextL1_layout, qTextL2_layout].filter(l => l && l.trim());
             const questionBlockActualHeight_layout = qTextLines_layout.length * LINE_HEIGHT;
             const questionBlockActualCenterY_layout = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT;
             const questionBlockActualBottomY_layout = questionBlockActualCenterY_layout + questionBlockActualHeight_layout / 2;
-            const answerBlockFinalTopY_fw = questionBlockActualBottomY_layout + ANSWER_OFFSET_Y;
+            
+            let answerBlockFinalTopY_fw;
+            if (qTextLines_layout.length > 0) { // 질문이 실제로 존재하면 그 아래에 배치
+                answerBlockFinalTopY_fw = questionBlockActualBottomY_layout + ANSWER_OFFSET_Y;
+            } else { // 질문이 없으면 (예: 첫 문장이 답변인 경우), 질문 위치에 답변을 중앙 정렬
+                answerBlockFinalTopY_fw = questionBlockActualCenterY_layout - sentenceBlockFinalHeight_fw / 2;
+            }
             wordTargetY = answerBlockFinalTopY_fw + (wordsForFireworks[j].row * LINE_HEIGHT) + (LINE_HEIGHT / 2);
         }
 
@@ -921,7 +922,7 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
             radius: baseRadius,
             maxRadius: maxRadius,
             color: color,
-            targetX: 0,
+            targetX: 0, 
             targetY: wordTargetY,
         });
     }
@@ -937,12 +938,10 @@ function updateFireworks() {
   if (fireworksState.phase === "explode") {
     const progress = Math.min(fireworksState.t / fireworksState.explodeDuration, 1);
     const ease = 1 - Math.pow(1 - progress, 2);
-    const radius = fireworksState.originRadius + (fireworksState.maxRadius - fireworksState.originRadius) * ease; // Hypothetical if individual radii used
     const currentRadius = 51.2 * 0.88 + (120.96 * 0.88 - 51.2 * 0.88) * ease;
 
-
     fireworks.forEach((fw) => {
-      fw.radius = currentRadius; // Use calculated radius for explode phase
+      fw.radius = currentRadius; 
       fw.x = fireworksState.originX + Math.cos(fw.angle) * fw.radius;
       fw.y = fireworksState.originY + Math.sin(fw.angle) * fw.radius;
     });
@@ -954,7 +953,7 @@ function updateFireworks() {
     if (fireworksState.t >= fireworksState.holdDuration) {
       fireworksState.phase = "gather";
       fireworksState.t = 0;
-      centerAlpha = 0; // Hide placeholder for final sentence while words gather
+      centerAlpha = 0; 
     }
   } else if (fireworksState.phase === "gather") {
     const progress = Math.min(fireworksState.t / fireworksState.gatherDuration, 1);
@@ -971,17 +970,10 @@ function updateFireworks() {
         let wordMetrics = wordsInLine.map(w => tempCtx.measureText(w));
         let spaceWidth = tempCtx.measureText(" ").width;
         let totalLineWidth = wordMetrics.reduce((sum, m) => sum + m.width, 0) + spaceWidth * (wordsInLine.length - 1);
+        
+        // 불꽃놀이 단어의 최종 X 위치도 항상 중앙 정렬
         let currentXTargetForLine = (canvas.width - totalLineWidth) / 2;
-        if (fireworksState.roleOfNewSentence === 'answer') {
-            const playSizeG = 36 * 0.49; const btnPadG = 18 * 0.49; const btnWG = playSizeG + btnPadG * 2; const btnXG = 10;
-            currentXTargetForLine = Math.max(currentXTargetForLine, btnXG + btnWG + 10);
-            let sentenceAreaWidthG = canvas.width - (btnXG + btnWG + 10) -10;
-            if (totalLineWidth < sentenceAreaWidthG) {
-               currentXTargetForLine = (btnXG + btnWG + 10) + (sentenceAreaWidthG - totalLineWidth) / 2;
-            } else {
-               currentXTargetForLine = btnXG + btnWG + 10;
-            }
-        }
+        
         for (let j = 0; j < wordsInLine.length; j++) {
             if (fireworks[wordIndexInFireworks]) {
                 fireworks[wordIndexInFireworks].targetX = currentXTargetForLine + wordMetrics.slice(0, j).reduce((sum, m) => sum + m.width, 0) + spaceWidth * j;
@@ -997,8 +989,8 @@ function updateFireworks() {
     if (progress >= 1) {
         fireworksState.phase = "done";
         const newSentenceText = fireworksState.sentenceTextToDisplayAfter;
-        const newSentenceIndex = fireworksState.finalSentenceIndex; // This is the index of the sentence that just finished animating
-        const roleOfNewSentence = fireworksState.roleOfNewSentence; // Role determined by newSentenceIndex's parity
+        const newSentenceIndex = fireworksState.finalSentenceIndex; 
+        const roleOfNewSentence = fireworksState.roleOfNewSentence; 
         const [newLine1, newLine2] = splitSentence(newSentenceText);
         const newSentenceObject = { line1: newLine1, line2: newLine2 };
         let playAudioForThisSentence = false;
@@ -1006,32 +998,30 @@ function updateFireworks() {
         if (roleOfNewSentence === 'question') {
             currentQuestionSentence = newSentenceObject;
             currentQuestionSentenceIndex = newSentenceIndex;
-            currentAnswerSentence = null; // Ensure answer is cleared
+            currentAnswerSentence = null; 
             currentAnswerSentenceIndex = null;
             showPlayButton = false;
-        } else { // roleOfNewSentence === 'answer'
-            // This new sentence is an answer. Ensure the correct question is displayed.
+        } else { 
             const questionIndexOfThisAnswer = newSentenceIndex - 1;
             if (questionIndexOfThisAnswer >= 0 && sentences[questionIndexOfThisAnswer]) {
-                // If currentQuestion isn't set, or isn't the correct one, load it.
                 if (!currentQuestionSentence || currentQuestionSentenceIndex !== questionIndexOfThisAnswer) {
                     const [qL1, qL2] = splitSentence(sentences[questionIndexOfThisAnswer]);
                     currentQuestionSentence = {line1: qL1, line2: qL2};
                     currentQuestionSentenceIndex = questionIndexOfThisAnswer;
                 }
             } else {
-                // This answer is orphaned, no preceding question in sentences array. Clear question display.
                 currentQuestionSentence = null;
                 currentQuestionSentenceIndex = null;
-                console.warn(`Orphaned Answer at index ${newSentenceIndex} cannot find its question.`);
+                // console.warn(`Orphaned Answer at index ${newSentenceIndex} cannot find its question.`);
             }
             currentAnswerSentence = newSentenceObject;
             currentAnswerSentenceIndex = newSentenceIndex;
-            showPlayButton = (currentQuestionSentence != null);
-            playAudioForThisSentence = (currentQuestionSentence != null);
+            // 답변 문장이 있으면 항상 플레이 버튼을 보여주도록 수정 (질문 유무와 관계 없이)
+            showPlayButton = true; 
+            playAudioForThisSentence = true; 
         }
 
-        centerAlpha = 1.0; // Make the newly formed sentence(s) visible
+        centerAlpha = 1.0; 
         fireworks = null;
         fireworksState = null;
         sentenceActive = false;
@@ -1097,7 +1087,7 @@ function update(delta) {
       if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
         if (!sentenceActive) {
             const sentenceToFirework = sentences[sentenceIndex];
-            const globalIndexOfSentence = sentenceIndex; // This is the index from the main 'sentences' array
+            const globalIndexOfSentence = sentenceIndex; 
             startFireworks(sentenceToFirework, globalIndexOfSentence, e.x + e.w / 2, e.y + e.h / 2);
             sentenceIndex = (sentenceIndex + 1) % sentences.length;
             localStorage.setItem('sentenceIndex', sentenceIndex.toString());
@@ -1111,11 +1101,19 @@ function update(delta) {
 
   if (sentenceActive) updateFireworks();
 
+  // 플레이 버튼 표시 로직을 updateFireworks의 'done' 단계에서 처리하도록 변경했으므로,
+  // 여기서는 명시적으로 showPlayButton을 false로 설정하는 부분만 남겨두거나,
+  // 해당 로직을 fireworksState.phase === 'done' 이후 상태에 따라 결정하도록 할 수 있습니다.
+  // 현재는 fireworks 'done' 상태에서 showPlayButton이 결정되므로, 아래 조건은 일부 중복될 수 있습니다.
   if (!currentQuestionSentence && !currentAnswerSentence && !sentenceActive) {
-    showPlayButton = false;
+    showPlayButton = false; 
     showTranslation = false;
     if (activeWordTranslation) activeWordTranslation.show = false;
     isActionLocked = false;
+  } else if (currentAnswerSentence && !sentenceActive) { 
+      showPlayButton = true; 
+  } else if (currentQuestionSentence && !currentAnswerSentence && !sentenceActive) { 
+      showPlayButton = false; 
   }
 }
 
@@ -1170,29 +1168,29 @@ function draw() {
   if (sentenceActive && fireworks && fireworksState) {
     if (fireworksState.roleOfNewSentence === 'answer' && currentQuestionSentence) {
       centerAlpha = 1.0;
-      const tempAnswerSentence = currentAnswerSentence; // Save current answer (likely null or old)
+      const tempAnswerSentence = currentAnswerSentence; 
       const tempAnswerIndex = currentAnswerSentenceIndex;
-      currentAnswerSentence = null; // Temporarily nullify to draw only question
+      currentAnswerSentence = null; 
       currentAnswerSentenceIndex = null;
-      drawCenterSentence(); // Draws question with forced alpha 1.0
-      currentAnswerSentence = tempAnswerSentence; // Restore
+      drawCenterSentence(); 
+      currentAnswerSentence = tempAnswerSentence; 
       currentAnswerSentenceIndex = tempAnswerIndex;
     }
-    centerAlpha = previousGlobalCenterAlpha; // Restore alpha for fireworks words (which use their own alpha or are affected by centerAlpha during gather)
+    centerAlpha = previousGlobalCenterAlpha; 
     drawFireworks();
   } else {
     if (currentQuestionSentence || currentAnswerSentence) {
-      centerAlpha = 1.0; // Static display uses full alpha
+      centerAlpha = 1.0; 
       drawCenterSentence();
     }
   }
-  // Ensure centerAlpha is correctly set for the next frame's logic if nothing else changes it
+  
   if (!sentenceActive) {
     centerAlpha = 1.0;
   } else if (fireworksState && fireworksState.phase === "gather") {
-    // centerAlpha is already 0 from updateFireworks, keep it that way until 'done'
+    // centerAlpha is already 0 from updateFireworks
   } else {
-    centerAlpha = previousGlobalCenterAlpha; // Default to its previous state if not explicitly set
+    centerAlpha = previousGlobalCenterAlpha; 
   }
 }
 
@@ -1332,37 +1330,45 @@ function handleCanvasInteraction(clientX, clientY, event) {
     return;
   }
 
-  if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
-    for (const wordRect of centerSentenceWordRects) {
-      if (
-        clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
-        clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
-      ) {
-        window.speechSynthesis.cancel();
-        speakWord(wordRect.word);
-        if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-        if (activeWordTranslation) activeWordTranslation.show = false;
-        activeWordTranslation = null;
-        getWordTranslation(wordRect.word).then(translation => {
-            activeWordTranslation = {
-                word: wordRect.word, translation: translation,
-                x: wordRect.x, y: wordRect.y, w: wordRect.w, h: wordRect.h,
-                lineIndex: wordRect.lineIndex, isQuestionWord: wordRect.isQuestionWord, show: true
-            };
-            wordTranslationTimeoutId = setTimeout(() => {
-                if (activeWordTranslation && activeWordTranslation.word === wordRect.word) {
-                    activeWordTranslation.show = false;
-                }
-            }, WORD_TRANSLATION_DURATION);
-        }).catch(err => console.error("Error getting word translation:", err));
-        showTranslation = false;
-        isActionLocked = true;
-        event.preventDefault();
-        setTimeout(() => { isActionLocked = false; }, 200);
-        return;
+  // 단어 클릭 로직은 showPlayButton 조건과 무관하게 문장이 표시되어 있을 때 항상 작동하도록 할 수 있습니다.
+  // 또는 showPlayButton이 true일 때만 작동하도록 유지할 수도 있습니다. (현재 로직 유지)
+  if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
+      // showPlayButton 조건을 제거하여 질문만 있을 때도 단어 클릭이 가능하도록 할 수 있으나,
+      // 현재는 플레이 버튼이 있을 때(즉, 답변이 있을 때)만 단어 클릭이 활성화되는 것으로 보입니다.
+      // 요청에 따라 이 부분을 수정할 수 있습니다. 지금은 기존 로직 유지.
+      if (showPlayButton) {
+        for (const wordRect of centerSentenceWordRects) {
+          if (
+            clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
+            clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
+          ) {
+            window.speechSynthesis.cancel();
+            speakWord(wordRect.word);
+            if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
+            if (activeWordTranslation) activeWordTranslation.show = false;
+            activeWordTranslation = null;
+            getWordTranslation(wordRect.word).then(translation => {
+                activeWordTranslation = {
+                    word: wordRect.word, translation: translation,
+                    x: wordRect.x, y: wordRect.y, w: wordRect.w, h: wordRect.h,
+                    lineIndex: wordRect.lineIndex, isQuestionWord: wordRect.isQuestionWord, show: true
+                };
+                wordTranslationTimeoutId = setTimeout(() => {
+                    if (activeWordTranslation && activeWordTranslation.word === wordRect.word) {
+                        activeWordTranslation.show = false;
+                    }
+                }, WORD_TRANSLATION_DURATION);
+            }).catch(err => console.error("Error getting word translation:", err));
+            showTranslation = false;
+            isActionLocked = true;
+            event.preventDefault();
+            setTimeout(() => { isActionLocked = false; }, 200);
+            return;
+          }
+        }
       }
-    }
   }
+
 
   if (!sentenceActive) {
       if (activeWordTranslation && activeWordTranslation.show) {
@@ -1402,6 +1408,7 @@ canvas.addEventListener('touchmove', e => {
     touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
   if (isOverPlayBtn) return;
 
+  // 단어 위로 드래그 시 플레이어 이동 방지 로직도 showPlayButton 조건과 연동될 수 있음.
   if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
     for (const wordRect of centerSentenceWordRects) {
       if (
@@ -1422,22 +1429,24 @@ canvas.addEventListener('mousemove', e => {
   if (isActionLocked && (e.buttons !== 1) ) return;
   if (sentenceActive && (e.buttons !==1)) return;
 
-  if (e.buttons !== 1) {
+  if (e.buttons !== 1) { // 마우스 버튼이 눌리지 않은 상태에서의 이동 (hover)
     const isOverPlayBtn = showPlayButton && playButtonRect &&
         e.clientX >= (playButtonRect.x - expandedMargin) &&
         e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
         e.clientY >= (playButtonRect.y - expandedMargin) &&
         e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-    if (isOverPlayBtn) return;
-     if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
+    if (isOverPlayBtn) return; // 플레이 버튼 위에 있으면 플레이어 이동 안 함
+     
+    if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
       for (const wordRect of centerSentenceWordRects) {
         if (
           e.clientX >= wordRect.x && e.clientX <= wordRect.x + wordRect.w &&
           e.clientY >= wordRect.y - wordRect.h/2 && e.clientY <= wordRect.y + wordRect.h/2
-        ) { return; }
+        ) { return; } // 단어 위에 있으면 플레이어 이동 안 함
       }
     }
-  }
+  } // 마우스 버튼이 눌린 상태 (드래그)에서는 이 검사를 건너뛰고 플레이어 위치 업데이트
+
   player.x = e.clientX - player.w / 2;
   player.y = e.clientY - player.h / 2;
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
@@ -1449,4 +1458,16 @@ window.addEventListener('load', () => {
     let storedIndex = Number(localStorage.getItem('sentenceIndex') || 0);
     sentenceIndex = storedIndex % sentences.length;
     localStorage.setItem('sentenceIndex', sentenceIndex.toString());
+
+    // startFireworks 함수 내에서 roleOfNewSentence === 'answer'일 때,
+    // questionTextForLayout이 비어있으면 답변 문장도 질문처럼 중앙 정렬되도록 하는 로직 추가
+    // (startFireworks 함수 내 wordTargetY 계산 로직에 이미 반영됨)
+
+    // updateFireworks 함수 내에서 roleOfNewSentence === 'answer'일 때,
+    // currentQuestionSentence가 없더라도 showPlayButton = true가 되도록 수정
+    // (updateFireworks 함수 내 fireworksState.phase === "done" 부분에서 showPlayButton = true; 로 수정됨)
+
+    // 만약, 게임 시작 시 또는 특정 조건에서 바로 답변 문장만 표시해야 하는 경우가 있다면,
+    // 해당 시점에 currentQuestionSentence = null, currentAnswerSentence = {답변 내용}으로 설정하고
+    // showPlayButton = true로 설정한 후 drawCenterSentence()를 호출하면 됩니다.
 });
