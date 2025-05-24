@@ -698,41 +698,49 @@ function drawCenterSentence() {
         const answerBlockHeight = answerLines.length * LINE_HEIGHT;
         
         let topYForAnswerBlock;
-
         if (currentQuestionSentence) {
             topYForAnswerBlock = questionDrawOutput.lastY + ANSWER_OFFSET_Y;
         } else {
             topYForAnswerBlock = questionBlockCenterY - (answerBlockHeight / 2);
         }
 
-        const playButtonActualCenterY = topYForAnswerBlock + answerBlockHeight / 2;
-        const playSize = 36 * 0.49;
-        const btnPad = 18 * 0.49;
-        const btnH = playSize + btnPad * 2;
-        const btnW = playSize + btnPad * 2;
-        const btnX = 10; // 플레이 버튼의 X 위치 (왼쪽 여백)
-        playButtonRect = { x: btnX, y: playButtonActualCenterY - btnH / 2, w: btnW, h: btnH };
+        // --- Play Button Size and Drawing Logic (visuals scaled down by 10%) ---
+        const baseOverallScale = 0.49; // Original scaling factor
+        const visualReductionFactor = 0.9; // Reduce visual size by 10%
+        const currentVisualScale = baseOverallScale * visualReductionFactor;
+
+        const playSize = 36 * currentVisualScale; // Scaled visual size of the play symbol
+        const btnPad = 18 * currentVisualScale;   // Scaled visual padding inside the button
+        
+        const btnH = playSize + btnPad * 2; // Total visual height of the button
+        const btnW = playSize + btnPad * 2; // Total visual width of the button
+        const btnX = 10; 
+        playButtonRect = { x: btnX, y: topYForAnswerBlock + (answerBlockHeight / 2) - (btnH / 2), w: btnW, h: btnH };
 
         if (showPlayButton) {
             ctx.save();
             ctx.globalAlpha = Math.min(1.0, centerAlpha + 0.2) * 0.82;
             ctx.fillStyle = "#222";
             ctx.beginPath();
-            ctx.roundRect(playButtonRect.x, playButtonRect.y, playButtonRect.w, playButtonRect.h, 20 * 0.49);
+            ctx.roundRect(playButtonRect.x, playButtonRect.y, playButtonRect.w, playButtonRect.h, 20 * currentVisualScale); 
             ctx.fill();
+            
             ctx.globalAlpha = centerAlpha;
             ctx.strokeStyle = "#4CAF50";
-            ctx.lineWidth = 3 * 0.49;
+            ctx.lineWidth = 3 * currentVisualScale; 
             ctx.stroke();
+            
             ctx.fillStyle = "#4CAF50";
             ctx.beginPath();
-            ctx.moveTo(playButtonRect.x + btnPad + 6 * 0.49, playButtonRect.y + btnPad);
-            ctx.lineTo(playButtonRect.x + btnPad + 6 * 0.49, playButtonRect.y + playButtonRect.h - btnPad);
-            ctx.lineTo(playButtonRect.x + btnPad + playSize, playButtonRect.y + playButtonRect.h / 2);
+            const triangleSymbolVerticalLineXOffset = 6 * currentVisualScale; 
+            ctx.moveTo(playButtonRect.x + btnPad + triangleSymbolVerticalLineXOffset, playButtonRect.y + btnPad);
+            ctx.lineTo(playButtonRect.x + btnPad + triangleSymbolVerticalLineXOffset, playButtonRect.y + playButtonRect.h - btnPad);
+            ctx.lineTo(playButtonRect.x + btnPad + playSize, playButtonRect.y + playButtonRect.h / 2); 
             ctx.closePath();
             ctx.fill();
             ctx.restore();
         }
+        // --- End Play Button Drawing Logic ---
         
         let answerBlockContext = { verbColored: false };
         const answerDrawOutput = drawSingleSentenceBlock(currentAnswerSentence, topYForAnswerBlock, false, answerBlockContext);
@@ -764,22 +772,23 @@ function drawCenterSentence() {
         ctx.fillStyle = "#98FB98";
         ctx.shadowColor = "rgba(0,0,0,0.6)";
         ctx.shadowBlur = 2; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+        
         const englishWordMiddleY = activeWordTranslation.y;
         const englishWordHalfHeight = activeWordTranslation.h / 2;
         const padding = 6;
         let tx = activeWordTranslation.x + activeWordTranslation.w / 2;
         let ty;
-        if (activeWordTranslation.isQuestionWord && activeWordTranslation.lineIndex === 0) {
-             ctx.textBaseline = "bottom";
-             ty = englishWordMiddleY - englishWordHalfHeight - padding;
-        } else if (!activeWordTranslation.isQuestionWord && activeWordTranslation.lineIndex === 0 && (!currentQuestionSentence || !currentQuestionSentence.line2 || currentQuestionSentence.line2.trim() === '')) {
-             ctx.textBaseline = "bottom";
-             ty = englishWordMiddleY - englishWordHalfHeight - padding;
+
+        if (!activeWordTranslation.isQuestionWord && activeWordTranslation.lineIndex === 0) {
+            // First line of an ANSWER sentence: translation ABOVE the word.
+            ctx.textBaseline = "bottom";
+            ty = englishWordMiddleY - englishWordHalfHeight - padding;
+        } else {
+            // All other cases (Question words, or second line of Answer): translation BELOW the word.
+            ctx.textBaseline = "top";
+            ty = englishWordMiddleY + englishWordHalfHeight + padding;
         }
-        else {
-             ctx.textBaseline = "top";
-             ty = englishWordMiddleY + englishWordHalfHeight + padding;
-        }
+        
         ctx.fillText(activeWordTranslation.translation, tx, ty);
         ctx.restore();
     }
@@ -992,7 +1001,7 @@ function updateFireworks() {
         const roleOfNewSentence = fireworksState.roleOfNewSentence; 
         const [newLine1, newLine2] = splitSentence(newSentenceText);
         const newSentenceObject = { line1: newLine1, line2: newLine2 };
-        let playAudioForThisSentence = false; // 초기화
+        let playAudioForThisSentence = false; 
 
         if (roleOfNewSentence === 'question') {
             currentQuestionSentence = newSentenceObject;
@@ -1000,8 +1009,8 @@ function updateFireworks() {
             currentAnswerSentence = null; 
             currentAnswerSentenceIndex = null;
             showPlayButton = false;
-            playAudioForThisSentence = true; // 질문 문장도 오디오 재생
-        } else { // roleOfNewSentence === 'answer'
+            playAudioForThisSentence = true; 
+        } else { 
             const questionIndexOfThisAnswer = newSentenceIndex - 1;
             if (questionIndexOfThisAnswer >= 0 && sentences[questionIndexOfThisAnswer]) {
                 if (!currentQuestionSentence || currentQuestionSentenceIndex !== questionIndexOfThisAnswer) {
@@ -1027,7 +1036,6 @@ function updateFireworks() {
         activeWordTranslation = null;
         if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
 
-        // 오디오 재생 로직 수정
         if (playAudioForThisSentence) {
             let audioIndexToPlay = null;
             if (roleOfNewSentence === 'question' && currentQuestionSentenceIndex !== null) {
@@ -1038,10 +1046,10 @@ function updateFireworks() {
 
             if (audioIndexToPlay !== null) {
                 setTimeout(() => {
-                    window.speechSynthesis.cancel(); // 이전 음성 출력이 있다면 취소
+                    window.speechSynthesis.cancel(); 
                     playSentenceAudio(audioIndexToPlay)
                         .catch(err => console.error(`Error playing sentence audio for index ${audioIndexToPlay} from fireworks:`, err));
-                }, 300); // 문장이 완전히 나타난 후 재생되도록 약간의 딜레이
+                }, 300); 
             }
         }
     }
@@ -1335,35 +1343,35 @@ function handleCanvasInteraction(clientX, clientY, event) {
   }
 
   if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
-      if (showPlayButton) { // Ensure play button (and thus usually an answer) is contextually relevant for word clicks
-        for (const wordRect of centerSentenceWordRects) {
-          if (
-            clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
-            clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
-          ) {
-            window.speechSynthesis.cancel();
-            speakWord(wordRect.word);
-            if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-            if (activeWordTranslation) activeWordTranslation.show = false;
-            activeWordTranslation = null;
-            getWordTranslation(wordRect.word).then(translation => {
-                activeWordTranslation = {
-                    word: wordRect.word, translation: translation,
-                    x: wordRect.x, y: wordRect.y, w: wordRect.w, h: wordRect.h,
-                    lineIndex: wordRect.lineIndex, isQuestionWord: wordRect.isQuestionWord, show: true
-                };
-                wordTranslationTimeoutId = setTimeout(() => {
-                    if (activeWordTranslation && activeWordTranslation.word === wordRect.word) {
-                        activeWordTranslation.show = false;
-                    }
-                }, WORD_TRANSLATION_DURATION);
-            }).catch(err => console.error("Error getting word translation:", err));
-            showTranslation = false;
-            isActionLocked = true;
-            event.preventDefault();
-            setTimeout(() => { isActionLocked = false; }, 200);
-            return;
-          }
+      // 단어 클릭은 질문이든 답변이든, 플레이 버튼 표시 여부와 관계없이 가능하도록 수정
+      // (이전에는 showPlayButton 조건이 있었음)
+      for (const wordRect of centerSentenceWordRects) {
+        if (
+          clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
+          clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
+        ) {
+          window.speechSynthesis.cancel();
+          speakWord(wordRect.word);
+          if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
+          if (activeWordTranslation) activeWordTranslation.show = false;
+          activeWordTranslation = null;
+          getWordTranslation(wordRect.word).then(translation => {
+              activeWordTranslation = {
+                  word: wordRect.word, translation: translation,
+                  x: wordRect.x, y: wordRect.y, w: wordRect.w, h: wordRect.h,
+                  lineIndex: wordRect.lineIndex, isQuestionWord: wordRect.isQuestionWord, show: true
+              };
+              wordTranslationTimeoutId = setTimeout(() => {
+                  if (activeWordTranslation && activeWordTranslation.word === wordRect.word) {
+                      activeWordTranslation.show = false;
+                  }
+              }, WORD_TRANSLATION_DURATION);
+          }).catch(err => console.error("Error getting word translation:", err));
+          showTranslation = false; // 단어 클릭 시 전체 번역은 숨김
+          isActionLocked = true;
+          event.preventDefault();
+          setTimeout(() => { isActionLocked = false; }, 200);
+          return;
         }
       }
   }
@@ -1407,7 +1415,8 @@ canvas.addEventListener('touchmove', e => {
     touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
   if (isOverPlayBtn) return;
 
-  if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
+  // 단어 위로 드래그 시 플레이어 이동 방지 (플레이 버튼 유무와 관계없이 단어 영역이면)
+  if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
     for (const wordRect of centerSentenceWordRects) {
       if (
         touch.clientX >= wordRect.x && touch.clientX <= wordRect.x + wordRect.w &&
@@ -1435,7 +1444,8 @@ canvas.addEventListener('mousemove', e => {
         e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
     if (isOverPlayBtn) return; 
      
-    if ((currentQuestionSentence || currentAnswerSentence) && showPlayButton && centerSentenceWordRects.length > 0) {
+    // 단어 위로 마우스 이동 시 플레이어 이동 방지 (플레이 버튼 유무와 관계없이 단어 영역이면)
+    if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
       for (const wordRect of centerSentenceWordRects) {
         if (
           e.clientX >= wordRect.x && e.clientX <= wordRect.x + wordRect.w &&
