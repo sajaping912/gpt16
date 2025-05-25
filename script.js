@@ -397,6 +397,7 @@ const ENEMY_SIZE = 40;
 const SENTENCE_VERTICAL_ADJUSTMENT = -70; 
 const ANSWER_OFFSET_Y = 60; 
 const LINE_HEIGHT = 30; 
+const PLAYER_TOUCH_Y_OFFSET = 15; // 플레이어를 터치 지점보다 얼마나 위에 위치시킬지에 대한 값
 
 let player = { x: 0, y: 0, w: PLAYER_SIZE, h: PLAYER_SIZE };
 let bullets = [];
@@ -1484,11 +1485,14 @@ function handleCanvasInteraction(clientX, clientY, event) {
   }
 
   // --- Player Control Logic (Movement and Shooting) ---
-  // This part executes if no UI element was clicked above, or if isActionLocked was false initially
-
-  // Player Movement (always allowed as per new requirement)
   player.x = clientX - player.w / 2;
-  player.y = clientY - player.h / 2;
+  // For touch events, adjust Y position so player is above the finger
+  if (event.type === 'touchstart' || event.type === 'touchmove') {
+    player.y = clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET;
+  } else { // For mouse events, player Y is centered at cursor Y
+    player.y = clientY - player.h / 2;
+  }
+  
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
   player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
 
@@ -1503,7 +1507,6 @@ function handleCanvasInteraction(clientX, clientY, event) {
   showTranslationForQuestion = false; 
   showTranslationForAnswer = false;
 
-  // Player Shooting (Always allow shooting if game is running and not paused, regardless of sentenceActive)
   bullets.push({ x: player.x + player.w / 2 - 2.5, y: player.y, w: 5, h: 10, speed: 2.1 });
   sounds.shoot.play();
   
@@ -1520,11 +1523,10 @@ canvas.addEventListener('mousedown', e => {
 });
 
 canvas.addEventListener('touchmove', e => {
-  if (!isGameRunning || isGamePaused) return; // Basic checks
+  if (!isGameRunning || isGamePaused) return; 
 
   const touch = e.touches[0];
 
-  // Prevent player move if dragging started over UI elements
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
     touch.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
     touch.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
@@ -1551,13 +1553,12 @@ canvas.addEventListener('touchmove', e => {
   }
 
   if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) {
-    e.preventDefault(); // Prevent canvas scroll if dragging over UI
-    return; // Don't move player if drag is over a UI element.
+    e.preventDefault(); 
+    return; 
   }
 
-  // Player movement
   player.x = touch.clientX - player.w / 2;
-  player.y = touch.clientY - player.h / 2;
+  player.y = touch.clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET; // Apply offset for touchmove
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
   player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
   e.preventDefault();
@@ -1565,9 +1566,8 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('mousemove', e => {
   if (!isGameRunning || isGamePaused) return;
-  if (e.buttons !== 1) return; // Only move if mouse button is pressed
+  if (e.buttons !== 1) return; 
 
-  // Prevent player move if dragging started over UI elements
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
       e.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
       e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
@@ -1593,11 +1593,10 @@ canvas.addEventListener('mousemove', e => {
     }
   }
 
-  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return; // Don't move player if drag is over UI
+  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return; 
   
-  // Player movement
   player.x = e.clientX - player.w / 2;
-  player.y = e.clientY - player.h / 2;
+  player.y = e.clientY - player.h / 2; // Mousemove does not use PLAYER_TOUCH_Y_OFFSET
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
   player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
 });
