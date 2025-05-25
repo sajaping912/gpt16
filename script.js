@@ -439,11 +439,11 @@ let wordTranslationTimeoutId = null;
 const WORD_TRANSLATION_DURATION = 3000; // ms
 
 const MODAL_AUX = [
-  "can","can't","cannot","could","couldn't","will","would","shall","should",
-  "may","might","must","won't","wouldn't","shan't","shouldn't","mayn't","mightn't","mustn't"
+  "can", "cant", "cannot", "could", "couldnt", "will", "would", "shall", "should",
+  "may", "might", "must", "wont", "wouldnt", "shant", "shouldnt", "maynt", "mightnt", "mustnt"
 ];
 const DO_AUX = [
-  "do", "does", "did", "don't", "doesn't", "didn't"
+  "do", "does", "did", "dont", "doesnt", "didnt"
 ];
 const notVerbIng = [
   "morning", "evening", "everything", "anything", "nothing", "something",
@@ -462,36 +462,41 @@ function isVerb(word) {
     "build", "make", "come", "wear", "fight", "hide", "bring", "catch", "use", "share", "play", "feel", "clean",
     "allowed", "join", "break", "crash", "do", "fly", "cry", "got", "lost", "visit", "talk", "help", "stuck", "eat",
     "go", "melt", "laugh", "can", "see", "fix", "jump", "practiced", "open", "hear", "find", "hiding", "start",
-    "taken", "rolled", "bring back", "carry", "couldn't", "set up", "keep"
+    "taken", "rolled", "bring", "carry", /* removed "couldn't" */ "set", "keep" // Base verbs only
   ];
-  const lowerWord = word.toLowerCase().replace(/[^a-z']/g, '');
+  const lowerWord = word.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (lowerWord === "bringback") return true; // Special case for "bring back"
+  if (lowerWord === "setup") return true; // Special case for "set up"
   return verbs.some(v => lowerWord === v || lowerWord.startsWith(v));
 }
 function isVing(word) {
-  let lw = word.toLowerCase();
+  let lw = word.toLowerCase().replace(/[^a-z0-9]/g, ''); // Cleaned word for -ing check
   if (notVerbIng.includes(lw)) return false;
-  if (/^[a-zA-Z]+ing$/.test(lw)) {
+  if (lw.endsWith('ing') && lw.length > 3) { // Ensure there's a base before "ing"
     let base = lw.slice(0, -3);
-    if (base.endsWith('e') && !base.endsWith('ee') && base !== 'be' && base.length > 1) {
-        if (base.endsWith('i')) {
+    // Simplified stemming for common cases
+    if (base.endsWith('e') && !base.endsWith('ee') && base !== 'be' && base.length > 1) { // making -> make
+        if(isVerb(base)) return true; // Check if 'mak' is a verb (it's not), then check 'make'
+        if(isVerb(base + 'e')) return true; // Check 'make'
+        if (base.endsWith('i')) { // tying -> tie
              base = base.slice(0, -1) + 'e';
         }
     } else if (base.length > 1 && base.charAt(base.length -1) === base.charAt(base.length-2) && !['ss','ll','ff','zz'].includes(base.slice(-2))) {
-        base = base.slice(0,-1);
+        base = base.slice(0,-1); // running -> run
     }
-    return isVerb(base) || (base.endsWith('y') && isVerb(base.slice(0, -1) + 'ie'));
+    return isVerb(base) || (base.endsWith('y') && isVerb(base.slice(0, -1) + 'ie')); // crying -> cry
   }
   return false;
 }
 function isBeen(word) {
-  return word.toLowerCase() === 'been';
+  return word.toLowerCase().replace(/[^a-z0-9]/g, '') === 'been';
 }
 function isQuestion(sentenceText) {
   return sentenceText.trim().endsWith('?');
 }
 
 async function getWordTranslation(word, targetLang = 'ko') {
-  const cleanedWord = word.replace(/[^a-zA-Z']/g, "").toLowerCase().trim();
+  const cleanedWord = word.replace(/[^a-zA-Z0-9]/g, "").toLowerCase().trim(); 
   if (!cleanedWord) return "Error: Invalid word";
   await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
   const mockTranslations = {
@@ -506,7 +511,7 @@ async function getWordTranslation(word, targetLang = 'ko') {
       "my": "나의", "mom": "엄마", "her": "그녀의", "blue": "파란색", "basket": "바구니",
       "how": "어떻게", "catch": "잡다", "tiny": "작은", "rainbow": "무지개", "butterfly": "나비",
       "use": "사용하다", "net": "그물", "and": "그리고", "be": "~이다", "very": "매우", "gentle": "부드러운",
-      "won’t": "~하지 않을 것이다", "share": "나누다", "from": "~로부터", "your": "너의", "lunchbox": "점심 도시락",
+      "wont": "~하지 않을 것이다", "share": "나누다", "from": "~로부터", "your": "너의", "lunchbox": "점심 도시락",
       "jelly": "젤리", "special": "특별한",
       "why": "왜", "sister": "자매", "play": "놀다", "tag": "술래잡기", "us": "우리",
       "she": "그녀는", "feels": "느끼다", "too": "너무", "sleepy": "졸린",
@@ -519,7 +524,7 @@ async function getWordTranslation(word, targetLang = 'ko') {
       "toy": "장난감", "car": "자동차", "break": "부수다", "again": "다시", "soon": "곧",
       "crash": "충돌하다", "hard": "세게",
       "would": "~일 것이다", "do": "하다", "flying": "나는", "carpet": "양탄자",
-      "fly": "날다", "grandma’s": "할머니의", "house": "집", "cookies": "쿠키",
+      "fly": "날다", "grandmas": "할머니의", "house": "집", "cookies": "쿠키",
       "he": "그는", "cry": "울다", "watching": "보는 중", "movie": "영화",
       "puppy": "강아지", "got": "되었다", "lost": "잃어버린",
       "visit": "방문하다", "underwater": "물속의", "castle": "성",
@@ -531,7 +536,7 @@ async function getWordTranslation(word, targetLang = 'ko') {
       "kite": "연", "stuck": "걸린",
       "dad": "아빠", "long": "긴", "stick": "막대기",
       "even": "심지어", "hungry": "배고픈",
-      "broccoli": "브로콜리", "ice": "아이스", "cream": "크림", "yucky": "맛없는",
+      "broccoli": "브로콜리", "ice": "아이스", "cream": "크림", "yucky": "맛없는", 
       "teddy": "테디", "bear": "곰", "tea": "차",
       "outside": "밖에", "together": "함께",
       "started": "시작했다", "thunderstorming": "천둥번개 치는",
@@ -543,7 +548,7 @@ async function getWordTranslation(word, targetLang = 'ko') {
       "teacher": "선생님", "stop": "멈추다", "laughing": "웃는 것",
       "can": "~할 수 있다", "shiny": "반짝이는", "rock": "돌",
       "stone": "돌",
-      "not": "아니다", "right now": "지금 당장",
+      "not": "아니다", "rightnow": "지금 당장", 
       "raining": "비가 오는", "mommy": "엄마", "said": "말했다", "muddy": "진흙탕의",
       "see": "보다", "new": "새로운",
       "over": "넘어서", "lunch": "점심",
@@ -553,7 +558,7 @@ async function getWordTranslation(word, targetLang = 'ko') {
       "dinner": "저녁",
       "jump": "뛰다", "so": "그렇게", "high": "높이", "like": "~처럼", "that": "저것",
       "practiced": "연습했다", "every": "매일", "day": "날", "trampoline": "트램펄린",
-      "can’t": "~할 수 없다", "before": "~전에",
+      "cant": "~할 수 없다", "before": "~전에", 
       "jar": "단지", "locked": "잠긴", "tight": "단단히",
       "kitchen": "부엌", "cooking": "요리하는 중",
       "crumbs": "부스러기", "couch": "소파",
@@ -571,24 +576,32 @@ async function getWordTranslation(word, targetLang = 'ko') {
       "taken": "가져간", "garden": "정원",
       "back": "뒤로", "safely": "안전하게",
       "carry": "나르다", "superhero": "슈퍼히어로", "backpack": "배낭",
-      "couldn’t": "~할 수 없었다", "paper": "종이",
+      "couldnt": "할 수 없었다", "paper": "종이", 
       "show": "보여주다", "puppet": "인형",
       "boots": "장화", "missing": "사라진",
       "race": "경주",
       "thunder": "천둥", "loud": "시끄러운",
-      "set up": "설치하다", "lemonade": "레모네이드", "stand": "가판대",
+      "setup": "설치하다", "lemonade": "레모네이드", "stand": "가판대", 
       "dripping": "물이 떨어지는",
       "join": "참여하다",
       "caught": "걸렸다", "cold": "감기",
       "socks": "양말", "getting": "되는 것",
-      "dry": "마른", "without": "~없이", "on": "위에"
+      "dry": "마른", "without": "~없이", "on": "위에",
+      "cannot": "할 수 없다",
+      "wouldnt": "하지 않았을 것이다", 
+      "shouldnt": "하지 말아야 한다",
+      "mustnt": "~해서는 안 된다",
+      "dont": "하지 않는다", 
+      "doesnt": "하지 않는다",
+      "didnt": "하지 않았다",
+      "its": "그것은"
   };
   if (mockTranslations[cleanedWord]) return mockTranslations[cleanedWord];
   return `[${cleanedWord} 뜻]`;
 }
 
 async function speakWord(word) {
-  const cleanWord = word.replace(/[^a-zA-Z']/g, "").trim();
+  const cleanWord = word.replace(/[^a-zA-Z0-9]/g, "").trim(); 
   if (!cleanWord) return;
   let voices = window.speechSynthesis.getVoices();
   if (!voices.length) {
@@ -648,24 +661,25 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
         const wordHeight = parseFloat(englishFont.match(/(\d*\.?\d*)px/)[1]);
         for (let j = 0; j < words.length; j++) {
             let rawWord = words[j];
-            let cleanedWord = rawWord.replace(/[^a-zA-Z']/g, "");
-            let lowerCleanedWord = cleanedWord.toLowerCase();
+            let cleanedWordForColor = rawWord.replace(/[^a-zA-Z0-9]/g, ""); 
+            let lowerCleanedWordForColor = cleanedWordForColor.toLowerCase();
+            
             let color = "#fff";
-            if (isCurrentBlockContentQuestionType && i === 0 && j === 0 && (isAux(lowerCleanedWord) || isWh(lowerCleanedWord))) {
+            if (isCurrentBlockContentQuestionType && i === 0 && j === 0 && (isAux(lowerCleanedWordForColor) || isWh(lowerCleanedWordForColor))) {
                 color = "#40b8ff";
-            } else if (isVerb(lowerCleanedWord) && !blockContext.verbColored) {
+            } else if (isVerb(lowerCleanedWordForColor) && !blockContext.verbColored) {
                 color = "#FFD600";
                 blockContext.verbColored = true;
-            } else if (isAux(lowerCleanedWord) || isBeen(lowerCleanedWord)) {
+            } else if (isAux(lowerCleanedWordForColor) || isBeen(lowerCleanedWordForColor)) {
                 color = "#40b8ff";
-            } else if (isVing(lowerCleanedWord)) {
+            } else if (isVing(lowerCleanedWordForColor)) { 
                 color = "#40b8ff";
             }
             ctx.fillStyle = color;
-            ctx.fillText(rawWord, currentX, currentLineCenterY);
+            ctx.fillText(rawWord, currentX, currentLineCenterY); 
             const measuredWidth = wordMetrics[j].width;
             localWordRects.push({
-                word: rawWord,
+                word: rawWord, 
                 x: currentX, y: currentLineCenterY, w: measuredWidth, h: wordHeight,
                 lineIndex: i,
                 isQuestionWord: isQuestionBlock
@@ -696,8 +710,8 @@ function drawPlayButton(buttonRect, visualScale) {
     // Triangle
     ctx.fillStyle = "#4CAF50";
     ctx.beginPath();
-    const playSize = 36 * visualScale; // Scaled visual size of the play symbol
-    const btnPad = 18 * visualScale;   // Scaled visual padding
+    const playSize = 36 * visualScale; 
+    const btnPad = 18 * visualScale;   
     const triangleSymbolVerticalLineXOffset = 6 * visualScale;
     ctx.moveTo(buttonRect.x + btnPad + triangleSymbolVerticalLineXOffset, buttonRect.y + btnPad);
     ctx.lineTo(buttonRect.x + btnPad + triangleSymbolVerticalLineXOffset, buttonRect.y + buttonRect.h - btnPad);
@@ -722,7 +736,7 @@ function drawCenterSentence() {
     let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] }; 
 
     const baseOverallScale = 0.49;
-    const visualReductionFactor = 0.8; // 20% reduction from original 0.49 scale
+    const visualReductionFactor = 0.8; 
     const currentVisualScale = baseOverallScale * visualReductionFactor;
     const playSizeForCalc = 36 * currentVisualScale; 
     const btnPadForCalc = 18 * currentVisualScale;   
