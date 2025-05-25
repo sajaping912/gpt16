@@ -424,9 +424,13 @@ let currentAnswerSentenceIndex = null;   // 원본 sentences 배열에서의 인
 let centerAlpha = 1.0; // 문장 표시 알파 (공통으로 사용)
 let sentenceActive = false; // 불꽃놀이 중인지 여부
 
-let showPlayButton = false;
-let playButtonRect = null;
-let showTranslation = false;
+let showPlayButton = false; // 답변 문장용 플레이 버튼
+let playButtonRect = null;  // 답변 문장용 플레이 버튼 좌표
+let showPlayButtonQuestion = false; // 질문 문장용 플레이 버튼
+let playButtonRectQuestion = null; // 질문 문장용 플레이 버튼 좌표
+
+let showTranslationForQuestion = false; // 질문 문장 번역 표시 여부
+let showTranslationForAnswer = false;   // 답변 문장 번역 표시 여부
 let isActionLocked = false;
 
 let centerSentenceWordRects = [];
@@ -639,7 +643,6 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
         let spaceWidth = ctx.measureText(" ").width;
         let totalLineWidth = wordMetrics.reduce((sum, m) => sum + m.width, 0) + spaceWidth * (words.length - 1);
         
-        // 항상 화면 중앙에 정렬
         let currentX = (canvas.width - totalLineWidth) / 2;
 
         const wordHeight = parseFloat(englishFont.match(/(\d*\.?\d*)px/)[1]);
@@ -674,6 +677,36 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
     return { lastY: lastDrawnTextBottomY, wordRects: localWordRects };
 }
 
+function drawPlayButton(buttonRect, visualScale) {
+    if (!buttonRect) return;
+    ctx.save();
+    // Background
+    ctx.globalAlpha = Math.min(1.0, centerAlpha + 0.2) * 0.82;
+    ctx.fillStyle = "#222";
+    ctx.beginPath();
+    ctx.roundRect(buttonRect.x, buttonRect.y, buttonRect.w, buttonRect.h, 20 * visualScale);
+    ctx.fill();
+    
+    // Border
+    ctx.globalAlpha = centerAlpha;
+    ctx.strokeStyle = "#4CAF50";
+    ctx.lineWidth = 3 * visualScale;
+    ctx.stroke();
+    
+    // Triangle
+    ctx.fillStyle = "#4CAF50";
+    ctx.beginPath();
+    const playSize = 36 * visualScale; // Scaled visual size of the play symbol
+    const btnPad = 18 * visualScale;   // Scaled visual padding
+    const triangleSymbolVerticalLineXOffset = 6 * visualScale;
+    ctx.moveTo(buttonRect.x + btnPad + triangleSymbolVerticalLineXOffset, buttonRect.y + btnPad);
+    ctx.lineTo(buttonRect.x + btnPad + triangleSymbolVerticalLineXOffset, buttonRect.y + buttonRect.h - btnPad);
+    ctx.lineTo(buttonRect.x + btnPad + playSize, buttonRect.y + buttonRect.h / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
 function drawCenterSentence() {
     if (!currentQuestionSentence && !currentAnswerSentence && !fireworks) {
         centerSentenceWordRects = [];
@@ -683,14 +716,47 @@ function drawCenterSentence() {
     ctx.save();
     ctx.globalAlpha = centerAlpha;
     const mainRenderAreaYCenter = topOffset + (canvas.height - topOffset) / 2;
-    const questionBlockCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT; 
+    const questionBlockCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT;
 
     let questionBlockContext = { verbColored: false };
-    let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] }; 
+    let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] };
+
+    const baseOverallScale = 0.49;
+    const visualReductionFactor = 0.9;
+    const currentVisualScale = baseOverallScale * visualReductionFactor;
+    const playSizeForCalc = 36 * currentVisualScale;
+    const btnPadForCalc = 18 * currentVisualScale;
+    const btnH = playSizeForCalc + btnPadForCalc * 2;
+    const btnW = playSizeForCalc + btnPadForCalc * 2;
+    const btnX = 10;
 
     if (currentQuestionSentence) {
         questionDrawOutput = drawSingleSentenceBlock(currentQuestionSentence, questionBlockCenterY, true, questionBlockContext);
         centerSentenceWordRects.push(...questionDrawOutput.wordRects);
+
+        const questionLines = [currentQuestionSentence.line1, currentQuestionSentence.line2].filter(l => l && l.trim());
+        const questionBlockHeight = questionLines.length * LINE_HEIGHT;
+        const questionButtonActualCenterY = questionBlockCenterY;
+        
+        playButtonRectQuestion = { x: btnX, y: questionButtonActualCenterY - btnH / 2, w: btnW, h: btnH };
+        if (showPlayButtonQuestion) {
+            drawPlayButton(playButtonRectQuestion, currentVisualScale);
+        }
+
+        if (showTranslationForQuestion && currentQuestionSentenceIndex !== null && translations[currentQuestionSentenceIndex]) {
+            ctx.save();
+            ctx.globalAlpha = centerAlpha;
+            ctx.font = translationFont;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = "#FFD600";
+            ctx.shadowColor = "#111";
+            ctx.shadowBlur = 4;
+            const translationTextHeight = parseFloat(translationFont.match(/(\d*\.?\d*)px/)[1]);
+            const translationBelowY = questionDrawOutput.lastY + 10 + translationTextHeight / 2;
+            ctx.fillText(translations[currentQuestionSentenceIndex], canvas.width / 2, translationBelowY);
+            ctx.restore();
+        }
     }
 
     if (currentAnswerSentence) {
@@ -699,54 +765,28 @@ function drawCenterSentence() {
         
         let topYForAnswerBlock;
         if (currentQuestionSentence) {
-            topYForAnswerBlock = questionDrawOutput.lastY + ANSWER_OFFSET_Y;
+            let questionLastY = questionDrawOutput.lastY;
+            if (showTranslationForQuestion && currentQuestionSentenceIndex !== null && translations[currentQuestionSentenceIndex]) {
+                const translationTextHeight = parseFloat(translationFont.match(/(\d*\.?\d*)px/)[1]);
+                questionLastY += (10 + translationTextHeight); 
+            }
+            topYForAnswerBlock = questionLastY + ANSWER_OFFSET_Y;
         } else {
             topYForAnswerBlock = questionBlockCenterY - (answerBlockHeight / 2);
         }
-
-        // --- Play Button Size and Drawing Logic (visuals scaled down by 10%) ---
-        const baseOverallScale = 0.49; // Original scaling factor
-        const visualReductionFactor = 0.9; // Reduce visual size by 10%
-        const currentVisualScale = baseOverallScale * visualReductionFactor;
-
-        const playSize = 36 * currentVisualScale; // Scaled visual size of the play symbol
-        const btnPad = 18 * currentVisualScale;   // Scaled visual padding inside the button
         
-        const btnH = playSize + btnPad * 2; // Total visual height of the button
-        const btnW = playSize + btnPad * 2; // Total visual width of the button
-        const btnX = 10; 
-        playButtonRect = { x: btnX, y: topYForAnswerBlock + (answerBlockHeight / 2) - (btnH / 2), w: btnW, h: btnH };
+        const answerButtonActualCenterY = topYForAnswerBlock + answerBlockHeight / 2;
+        playButtonRect = { x: btnX, y: answerButtonActualCenterY - btnH / 2, w: btnW, h: btnH };
 
         if (showPlayButton) {
-            ctx.save();
-            ctx.globalAlpha = Math.min(1.0, centerAlpha + 0.2) * 0.82;
-            ctx.fillStyle = "#222";
-            ctx.beginPath();
-            ctx.roundRect(playButtonRect.x, playButtonRect.y, playButtonRect.w, playButtonRect.h, 20 * currentVisualScale); 
-            ctx.fill();
-            
-            ctx.globalAlpha = centerAlpha;
-            ctx.strokeStyle = "#4CAF50";
-            ctx.lineWidth = 3 * currentVisualScale; 
-            ctx.stroke();
-            
-            ctx.fillStyle = "#4CAF50";
-            ctx.beginPath();
-            const triangleSymbolVerticalLineXOffset = 6 * currentVisualScale; 
-            ctx.moveTo(playButtonRect.x + btnPad + triangleSymbolVerticalLineXOffset, playButtonRect.y + btnPad);
-            ctx.lineTo(playButtonRect.x + btnPad + triangleSymbolVerticalLineXOffset, playButtonRect.y + playButtonRect.h - btnPad);
-            ctx.lineTo(playButtonRect.x + btnPad + playSize, playButtonRect.y + playButtonRect.h / 2); 
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
+            drawPlayButton(playButtonRect, currentVisualScale);
         }
-        // --- End Play Button Drawing Logic ---
         
         let answerBlockContext = { verbColored: false };
         const answerDrawOutput = drawSingleSentenceBlock(currentAnswerSentence, topYForAnswerBlock, false, answerBlockContext);
         centerSentenceWordRects.push(...answerDrawOutput.wordRects);
 
-        if (showTranslation && currentAnswerSentenceIndex !== null && translations[currentAnswerSentenceIndex]) {
+        if (showTranslationForAnswer && currentAnswerSentenceIndex !== null && translations[currentAnswerSentenceIndex]) {
             ctx.save();
             ctx.globalAlpha = centerAlpha;
             ctx.font = translationFont;
@@ -779,12 +819,10 @@ function drawCenterSentence() {
         let tx = activeWordTranslation.x + activeWordTranslation.w / 2;
         let ty;
 
-        if (!activeWordTranslation.isQuestionWord && activeWordTranslation.lineIndex === 0) {
-            // First line of an ANSWER sentence: translation ABOVE the word.
+        if (activeWordTranslation.lineIndex === 0) { 
             ctx.textBaseline = "bottom";
             ty = englishWordMiddleY - englishWordHalfHeight - padding;
-        } else {
-            // All other cases (Question words, or second line of Answer): translation BELOW the word.
+        } else { 
             ctx.textBaseline = "top";
             ty = englishWordMiddleY + englishWordHalfHeight + padding;
         }
@@ -842,7 +880,9 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
         currentQuestionSentenceIndex = null;
         currentAnswerSentenceIndex = null;
         showPlayButton = false;
-        showTranslation = false;
+        showPlayButtonQuestion = false; 
+        showTranslationForQuestion = false; 
+        showTranslationForAnswer = false;   
     } else { 
         if (currentQuestionSentence && currentQuestionSentenceIndex === globalSentenceIndex - 1) {
             questionTextForLayout = (currentQuestionSentence.line1 + " " + currentQuestionSentence.line2).trim();
@@ -854,7 +894,9 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
         }
         currentAnswerSentence = null;
         currentAnswerSentenceIndex = null;
-        showTranslation = false;
+        showPlayButton = false; 
+        showTranslationForQuestion = false; 
+        showTranslationForAnswer = false;   
     }
 
     if (activeWordTranslation) activeWordTranslation.show = false;
@@ -914,9 +956,9 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
             const questionBlockActualBottomY_layout = questionBlockActualCenterY_layout + questionBlockActualHeight_layout / 2;
             
             let answerBlockFinalTopY_fw;
-            if (qTextLines_layout.length > 0) { // 질문이 실제로 존재하면 그 아래에 배치
+            if (qTextLines_layout.length > 0) { 
                 answerBlockFinalTopY_fw = questionBlockActualBottomY_layout + ANSWER_OFFSET_Y;
-            } else { // 질문이 없으면 (예: 첫 문장이 답변인 경우), 질문 위치에 답변을 중앙 정렬
+            } else { 
                 answerBlockFinalTopY_fw = questionBlockActualCenterY_layout - sentenceBlockFinalHeight_fw / 2;
             }
             wordTargetY = answerBlockFinalTopY_fw + (wordsForFireworks[j].row * LINE_HEIGHT) + (LINE_HEIGHT / 2);
@@ -1008,7 +1050,8 @@ function updateFireworks() {
             currentQuestionSentenceIndex = newSentenceIndex;
             currentAnswerSentence = null; 
             currentAnswerSentenceIndex = null;
-            showPlayButton = false;
+            showPlayButton = false; 
+            showPlayButtonQuestion = true; 
             playAudioForThisSentence = true; 
         } else { 
             const questionIndexOfThisAnswer = newSentenceIndex - 1;
@@ -1017,10 +1060,12 @@ function updateFireworks() {
                     const [qL1, qL2] = splitSentence(sentences[questionIndexOfThisAnswer]);
                     currentQuestionSentence = {line1: qL1, line2: qL2};
                     currentQuestionSentenceIndex = questionIndexOfThisAnswer;
+                    showPlayButtonQuestion = true; 
                 }
             } else {
                 currentQuestionSentence = null;
                 currentQuestionSentenceIndex = null;
+                showPlayButtonQuestion = false; 
             }
             currentAnswerSentence = newSentenceObject;
             currentAnswerSentenceIndex = newSentenceIndex;
@@ -1119,13 +1164,14 @@ function update(delta) {
 
   if (!currentQuestionSentence && !currentAnswerSentence && !sentenceActive) {
     showPlayButton = false; 
-    showTranslation = false;
+    showPlayButtonQuestion = false;
+    showTranslationForQuestion = false; 
+    showTranslationForAnswer = false;   
     if (activeWordTranslation) activeWordTranslation.show = false;
     isActionLocked = false;
-  } else if (currentAnswerSentence && !sentenceActive) { 
-      showPlayButton = true; 
-  } else if (currentQuestionSentence && !currentAnswerSentence && !sentenceActive) { 
-      showPlayButton = false; 
+  } else if (!sentenceActive) { 
+      showPlayButtonQuestion = !!currentQuestionSentence;
+      showPlayButton = !!currentAnswerSentence;
   }
 }
 
@@ -1228,7 +1274,9 @@ function resetGameStateForStartStop() {
     currentQuestionSentenceIndex = null; currentAnswerSentenceIndex = null;
     sentenceActive = false; centerAlpha = 1.0;
     showPlayButton = false; playButtonRect = null;
-    showTranslation = false;
+    showPlayButtonQuestion = false; playButtonRectQuestion = null; 
+    showTranslationForQuestion = false; 
+    showTranslationForAnswer = false;   
     if (activeWordTranslation) activeWordTranslation.show = false;
     activeWordTranslation = null;
     if (wordTranslationTimeoutId) {
@@ -1318,14 +1366,41 @@ const expandedMargin = 10;
 
 function handleCanvasInteraction(clientX, clientY, event) {
   if (!isGameRunning || isGamePaused || isActionLocked) return;
-  const isPlayBtnTouched = showPlayButton && playButtonRect &&
+
+  const isPlayBtnQuestionTouched = showPlayButtonQuestion && playButtonRectQuestion &&
+    clientX >= (playButtonRectQuestion.x - expandedMargin) &&
+    clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+    clientY >= (playButtonRectQuestion.y - expandedMargin) &&
+    clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
+
+  const isPlayBtnAnswerTouched = showPlayButton && playButtonRect &&
     clientX >= (playButtonRect.x - expandedMargin) &&
     clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
     clientY >= (playButtonRect.y - expandedMargin) &&
     clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
 
-  if (isPlayBtnTouched) {
-    showTranslation = true;
+  if (isPlayBtnQuestionTouched) {
+    showTranslationForQuestion = true; 
+    showTranslationForAnswer = false; 
+    if (activeWordTranslation) activeWordTranslation.show = false;
+    if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
+    activeWordTranslation = null;
+    isActionLocked = true;
+    if (currentQuestionSentenceIndex !== null) {
+        window.speechSynthesis.cancel();
+        playSentenceAudio(currentQuestionSentenceIndex)
+            .catch(err => console.error("Error playing question sentence audio from play button:", err));
+    } else {
+        console.warn("Question play button touched, but currentQuestionSentenceIndex is null.");
+    }
+    event.preventDefault();
+    setTimeout(() => { isActionLocked = false; }, 200);
+    return;
+  }
+  
+  if (isPlayBtnAnswerTouched) {
+    showTranslationForAnswer = true;
+    showTranslationForQuestion = false; 
     if (activeWordTranslation) activeWordTranslation.show = false;
     if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
     activeWordTranslation = null;
@@ -1333,9 +1408,9 @@ function handleCanvasInteraction(clientX, clientY, event) {
     if (currentAnswerSentenceIndex !== null) {
         window.speechSynthesis.cancel();
         playSentenceAudio(currentAnswerSentenceIndex)
-            .catch(err => console.error("Error playing sentence audio from play button:", err));
+            .catch(err => console.error("Error playing answer sentence audio from play button:", err));
     } else {
-        console.warn("Play button touched, but currentAnswerSentenceIndex is null.");
+        console.warn("Answer play button touched, but currentAnswerSentenceIndex is null.");
     }
     event.preventDefault();
     setTimeout(() => { isActionLocked = false; }, 200);
@@ -1343,8 +1418,6 @@ function handleCanvasInteraction(clientX, clientY, event) {
   }
 
   if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
-      // 단어 클릭은 질문이든 답변이든, 플레이 버튼 표시 여부와 관계없이 가능하도록 수정
-      // (이전에는 showPlayButton 조건이 있었음)
       for (const wordRect of centerSentenceWordRects) {
         if (
           clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
@@ -1367,7 +1440,8 @@ function handleCanvasInteraction(clientX, clientY, event) {
                   }
               }, WORD_TRANSLATION_DURATION);
           }).catch(err => console.error("Error getting word translation:", err));
-          showTranslation = false; // 단어 클릭 시 전체 번역은 숨김
+          showTranslationForQuestion = false; 
+          showTranslationForAnswer = false;
           isActionLocked = true;
           event.preventDefault();
           setTimeout(() => { isActionLocked = false; }, 200);
@@ -1375,7 +1449,6 @@ function handleCanvasInteraction(clientX, clientY, event) {
         }
       }
   }
-
 
   if (!sentenceActive) {
       if (activeWordTranslation && activeWordTranslation.show) {
@@ -1385,7 +1458,8 @@ function handleCanvasInteraction(clientX, clientY, event) {
             wordTranslationTimeoutId = null;
         }
       }
-      showTranslation = false;
+      showTranslationForQuestion = false; 
+      showTranslationForAnswer = false;
       player.x = clientX - player.w / 2;
       player.y = clientY - player.h / 2;
       player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
@@ -1408,14 +1482,20 @@ canvas.addEventListener('mousedown', e => {
 canvas.addEventListener('touchmove', e => {
   if (!isGameRunning || isGamePaused || isActionLocked || sentenceActive) return;
   const touch = e.touches[0];
-  const isOverPlayBtn = showPlayButton && playButtonRect &&
+  const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
+    touch.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
+    touch.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+    touch.clientY >= (playButtonRectQuestion.y - expandedMargin) &&
+    touch.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
+  
+  const isOverPlayBtnA = showPlayButton && playButtonRect &&
     touch.clientX >= (playButtonRect.x - expandedMargin) &&
     touch.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
     touch.clientY >= (playButtonRect.y - expandedMargin) &&
     touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-  if (isOverPlayBtn) return;
 
-  // 단어 위로 드래그 시 플레이어 이동 방지 (플레이 버튼 유무와 관계없이 단어 영역이면)
+  if (isOverPlayBtnQ || isOverPlayBtnA) return;
+
   if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
     for (const wordRect of centerSentenceWordRects) {
       if (
@@ -1437,14 +1517,20 @@ canvas.addEventListener('mousemove', e => {
   if (sentenceActive && (e.buttons !==1)) return;
 
   if (e.buttons !== 1) { 
-    const isOverPlayBtn = showPlayButton && playButtonRect &&
+    const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
+        e.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
+        e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+        e.clientY >= (playButtonRectQuestion.y - expandedMargin) &&
+        e.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
+    
+    const isOverPlayBtnA = showPlayButton && playButtonRect &&
         e.clientX >= (playButtonRect.x - expandedMargin) &&
         e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
         e.clientY >= (playButtonRect.y - expandedMargin) &&
         e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-    if (isOverPlayBtn) return; 
+
+    if (isOverPlayBtnQ || isOverPlayBtnA) return; 
      
-    // 단어 위로 마우스 이동 시 플레이어 이동 방지 (플레이 버튼 유무와 관계없이 단어 영역이면)
     if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
       for (const wordRect of centerSentenceWordRects) {
         if (
