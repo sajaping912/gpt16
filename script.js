@@ -627,7 +627,7 @@ async function speakWord(word) {
 }
 
 const englishFont = "23.52px Arial";
-const translationFont = "18.9px Arial";
+const translationFont = "17.0px Arial"; // 10% 축소
 
 function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockContext) {
     if (!sentenceObject) return { lastY: baseY, wordRects: [] };
