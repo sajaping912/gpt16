@@ -429,8 +429,8 @@ let playButtonRect = null;  // 답변 문장용 플레이 버튼 좌표
 let showPlayButtonQuestion = false; // 질문 문장용 플레이 버튼
 let playButtonRectQuestion = null; // 질문 문장용 플레이 버튼 좌표
 
-let showTranslationForQuestion = false; // 질문 문장 번역 표시 여부
-let showTranslationForAnswer = false;   // 답변 문장 번역 표시 여부
+let showTranslationForQuestion = false; 
+let showTranslationForAnswer = false;   
 let isActionLocked = false;
 
 let centerSentenceWordRects = [];
@@ -716,18 +716,19 @@ function drawCenterSentence() {
     ctx.save();
     ctx.globalAlpha = centerAlpha;
     const mainRenderAreaYCenter = topOffset + (canvas.height - topOffset) / 2;
-    const questionBlockCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT;
+    const questionBlockCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT; 
 
     let questionBlockContext = { verbColored: false };
-    let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] };
+    let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] }; 
 
     const baseOverallScale = 0.49;
-    const visualReductionFactor = 0.9;
+    const visualReductionFactor = 0.8; // 20% reduction from original 0.49 scale
     const currentVisualScale = baseOverallScale * visualReductionFactor;
-    const playSizeForCalc = 36 * currentVisualScale;
-    const btnPadForCalc = 18 * currentVisualScale;
-    const btnH = playSizeForCalc + btnPadForCalc * 2;
-    const btnW = playSizeForCalc + btnPadForCalc * 2;
+    const playSizeForCalc = 36 * currentVisualScale; 
+    const btnPadForCalc = 18 * currentVisualScale;   
+    
+    const btnH = playSizeForCalc + btnPadForCalc * 2; 
+    const btnW = playSizeForCalc + btnPadForCalc * 2; 
     const btnX = 10;
 
     if (currentQuestionSentence) {
@@ -736,7 +737,7 @@ function drawCenterSentence() {
 
         const questionLines = [currentQuestionSentence.line1, currentQuestionSentence.line2].filter(l => l && l.trim());
         const questionBlockHeight = questionLines.length * LINE_HEIGHT;
-        const questionButtonActualCenterY = questionBlockCenterY;
+        const questionButtonActualCenterY = questionBlockCenterY; 
         
         playButtonRectQuestion = { x: btnX, y: questionButtonActualCenterY - btnH / 2, w: btnW, h: btnH };
         if (showPlayButtonQuestion) {
@@ -749,7 +750,7 @@ function drawCenterSentence() {
             ctx.font = translationFont;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillStyle = "#FFD600";
+            ctx.fillStyle = "#FFD600"; 
             ctx.shadowColor = "#111";
             ctx.shadowBlur = 4;
             const translationTextHeight = parseFloat(translationFont.match(/(\d*\.?\d*)px/)[1]);
