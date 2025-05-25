@@ -394,9 +394,9 @@ if (coffeeSteamVideo) {
 
 const PLAYER_SIZE = 50;
 const ENEMY_SIZE = 40;
-const SENTENCE_VERTICAL_ADJUSTMENT = -60; // px, 질문 문장의 Y축 조정
-const ANSWER_OFFSET_Y = 50; // 질문 문장 하단과 답변 문장 상단 사이의 간격
-const LINE_HEIGHT = 30; // 문장 한 줄의 높이
+const SENTENCE_VERTICAL_ADJUSTMENT = -70; 
+const ANSWER_OFFSET_Y = 60; 
+const LINE_HEIGHT = 30; 
 
 let player = { x: 0, y: 0, w: PLAYER_SIZE, h: PLAYER_SIZE };
 let bullets = [];
@@ -431,7 +431,7 @@ let playButtonRectQuestion = null; // 질문 문장용 플레이 버튼 좌표
 
 let showTranslationForQuestion = false; 
 let showTranslationForAnswer = false;   
-let isActionLocked = false;
+let isActionLocked = false; // UI 요소 중복 클릭 방지용
 
 let centerSentenceWordRects = [];
 let activeWordTranslation = null;
@@ -691,31 +691,51 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
     return { lastY: lastDrawnTextBottomY, wordRects: localWordRects };
 }
 
-function drawPlayButton(buttonRect, visualScale) {
+function drawPlayButton(buttonRect, baseScaleForOriginalSize) {
     if (!buttonRect) return;
+
+    const visualShrinkFactor = 0.8; // 시각적으로 20% 축소
+
+    // 축소된 시각적 크기 계산
+    const visualWidth = buttonRect.w * visualShrinkFactor;
+    const visualHeight = buttonRect.h * visualShrinkFactor;
+
+    // 축소된 버튼을 원래 buttonRect의 중앙에 위치시키기 위한 좌표
+    const visualX = buttonRect.x + (buttonRect.w - visualWidth) / 2;
+    const visualY = buttonRect.y + (buttonRect.h - visualHeight) / 2;
+    
+    // 버튼 내부 요소들(테두리 두께, 아이콘 크기 등)도 축소 비율에 맞게 조정
+    const internalElementScale = baseScaleForOriginalSize * visualShrinkFactor;
+
     ctx.save();
     // Background
     ctx.globalAlpha = Math.min(1.0, centerAlpha + 0.2) * 0.82;
     ctx.fillStyle = "#222";
     ctx.beginPath();
-    ctx.roundRect(buttonRect.x, buttonRect.y, buttonRect.w, buttonRect.h, 20 * visualScale);
+    // 모서리 둥글기도 스케일에 맞춰 조정
+    const cornerRadius = 20 * internalElementScale; 
+    ctx.roundRect(visualX, visualY, visualWidth, visualHeight, cornerRadius);
     ctx.fill();
     
     // Border
     ctx.globalAlpha = centerAlpha;
     ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 3 * visualScale;
+    ctx.lineWidth = 3 * internalElementScale; // 테두리 두께도 스케일 조정
+    ctx.beginPath(); // 새 경로 시작 (축소된 사각형용)
+    ctx.roundRect(visualX, visualY, visualWidth, visualHeight, cornerRadius);
     ctx.stroke();
     
-    // Triangle
+    // Triangle (Play icon)
     ctx.fillStyle = "#4CAF50";
     ctx.beginPath();
-    const playSize = 36 * visualScale; 
-    const btnPad = 18 * visualScale;   
-    const triangleSymbolVerticalLineXOffset = 6 * visualScale;
-    ctx.moveTo(buttonRect.x + btnPad + triangleSymbolVerticalLineXOffset, buttonRect.y + btnPad);
-    ctx.lineTo(buttonRect.x + btnPad + triangleSymbolVerticalLineXOffset, buttonRect.y + buttonRect.h - btnPad);
-    ctx.lineTo(buttonRect.x + btnPad + playSize, buttonRect.y + buttonRect.h / 2);
+    const playSize = 36 * internalElementScale; 
+    const btnPad = 18 * internalElementScale;   
+    const triangleSymbolVerticalLineXOffset = 6 * internalElementScale;
+
+    // 삼각형 좌표는 축소된 시각적 버튼(visualX, visualY, visualWidth, visualHeight) 기준으로 계산
+    ctx.moveTo(visualX + btnPad + triangleSymbolVerticalLineXOffset, visualY + btnPad);
+    ctx.lineTo(visualX + btnPad + triangleSymbolVerticalLineXOffset, visualY + visualHeight - btnPad);
+    ctx.lineTo(visualX + btnPad + playSize, visualY + visualHeight / 2);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -737,25 +757,21 @@ function drawCenterSentence() {
 
     const baseOverallScale = 0.49;
     const visualReductionFactor = 0.8; 
-    const currentVisualScale = baseOverallScale * visualReductionFactor;
-    const playSizeForCalc = 36 * currentVisualScale; 
-    const btnPadForCalc = 18 * currentVisualScale;   
+    const currentVisualScaleForHitbox = baseOverallScale * visualReductionFactor; // 히트박스 계산용 스케일
     
-    const btnH = playSizeForCalc + btnPadForCalc * 2; 
-    const btnW = playSizeForCalc + btnPadForCalc * 2; 
+    const btnH_forHitbox = (36 * currentVisualScaleForHitbox) + (18 * currentVisualScaleForHitbox * 2); 
+    const btnW_forHitbox = (36 * currentVisualScaleForHitbox) + (18 * currentVisualScaleForHitbox * 2); 
     const btnX = 10;
 
     if (currentQuestionSentence) {
         questionDrawOutput = drawSingleSentenceBlock(currentQuestionSentence, questionBlockCenterY, true, questionBlockContext);
         centerSentenceWordRects.push(...questionDrawOutput.wordRects);
 
-        const questionLines = [currentQuestionSentence.line1, currentQuestionSentence.line2].filter(l => l && l.trim());
-        const questionBlockHeight = questionLines.length * LINE_HEIGHT;
         const questionButtonActualCenterY = questionBlockCenterY; 
         
-        playButtonRectQuestion = { x: btnX, y: questionButtonActualCenterY - btnH / 2, w: btnW, h: btnH };
+        playButtonRectQuestion = { x: btnX, y: questionButtonActualCenterY - btnH_forHitbox / 2, w: btnW_forHitbox, h: btnH_forHitbox };
         if (showPlayButtonQuestion) {
-            drawPlayButton(playButtonRectQuestion, currentVisualScale);
+            drawPlayButton(playButtonRectQuestion, currentVisualScaleForHitbox);
         }
 
         if (showTranslationForQuestion && currentQuestionSentenceIndex !== null && translations[currentQuestionSentenceIndex]) {
@@ -768,7 +784,7 @@ function drawCenterSentence() {
             ctx.shadowColor = "#111";
             ctx.shadowBlur = 4;
             const translationTextHeight = parseFloat(translationFont.match(/(\d*\.?\d*)px/)[1]);
-            const translationBelowY = questionDrawOutput.lastY + 10 + translationTextHeight / 2;
+            const translationBelowY = questionDrawOutput.lastY + 10 + translationTextHeight / 2; 
             ctx.fillText(translations[currentQuestionSentenceIndex], canvas.width / 2, translationBelowY);
             ctx.restore();
         }
@@ -780,21 +796,16 @@ function drawCenterSentence() {
         
         let topYForAnswerBlock;
         if (currentQuestionSentence) {
-            let questionLastY = questionDrawOutput.lastY;
-            if (showTranslationForQuestion && currentQuestionSentenceIndex !== null && translations[currentQuestionSentenceIndex]) {
-                const translationTextHeight = parseFloat(translationFont.match(/(\d*\.?\d*)px/)[1]);
-                questionLastY += (10 + translationTextHeight); 
-            }
-            topYForAnswerBlock = questionLastY + ANSWER_OFFSET_Y;
-        } else {
+            topYForAnswerBlock = questionDrawOutput.lastY + ANSWER_OFFSET_Y;
+        } else { 
             topYForAnswerBlock = questionBlockCenterY - (answerBlockHeight / 2);
         }
         
         const answerButtonActualCenterY = topYForAnswerBlock + answerBlockHeight / 2;
-        playButtonRect = { x: btnX, y: answerButtonActualCenterY - btnH / 2, w: btnW, h: btnH };
+        playButtonRect = { x: btnX, y: answerButtonActualCenterY - btnH_forHitbox / 2, w: btnW_forHitbox, h: btnH_forHitbox };
 
         if (showPlayButton) {
-            drawPlayButton(playButtonRect, currentVisualScale);
+            drawPlayButton(playButtonRect, currentVisualScaleForHitbox);
         }
         
         let answerBlockContext = { verbColored: false };
@@ -1161,7 +1172,7 @@ function update(delta) {
   bullets.forEach((b, bi) => {
     enemies.forEach((e, ei) => {
       if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
-        if (!sentenceActive) {
+        if (!sentenceActive) { // Only trigger fireworks if not already in sentence animation
             const sentenceToFirework = sentences[sentenceIndex];
             const globalIndexOfSentence = sentenceIndex; 
             startFireworks(sentenceToFirework, globalIndexOfSentence, e.x + e.w / 2, e.y + e.h / 2);
@@ -1177,14 +1188,15 @@ function update(delta) {
 
   if (sentenceActive) updateFireworks();
 
+  // Reset UI states if no sentences are active or being animated
   if (!currentQuestionSentence && !currentAnswerSentence && !sentenceActive) {
     showPlayButton = false; 
     showPlayButtonQuestion = false;
     showTranslationForQuestion = false; 
     showTranslationForAnswer = false;   
     if (activeWordTranslation) activeWordTranslation.show = false;
-    isActionLocked = false;
-  } else if (!sentenceActive) { 
+    // isActionLocked is handled by setTimeout, so no need to reset it here explicitly
+  } else if (!sentenceActive) { // If sentences are present but not animating
       showPlayButtonQuestion = !!currentQuestionSentence;
       showPlayButton = !!currentAnswerSentence;
   }
@@ -1269,6 +1281,8 @@ function draw() {
 
 function gameLoop(time) {
   if (!isGameRunning || isGamePaused) {
+      // Draw even if paused to show current state, but don't update
+      if (isGamePaused) draw(); 
       return;
   }
   const delta = time - lastTime;
@@ -1299,7 +1313,7 @@ function resetGameStateForStartStop() {
         wordTranslationTimeoutId = null;
     }
     centerSentenceWordRects = [];
-    isActionLocked = false;
+    isActionLocked = false; 
 }
 
 function startGame() {
@@ -1310,6 +1324,7 @@ function startGame() {
   }
   isGameRunning = true;
   isGamePaused = false;
+  document.getElementById('pauseBtn').textContent = 'PAUSE'; // Ensure pause button text is correct
   try { bgmAudio.pause(); bgmAudio.currentTime = 0; } catch (e) {}
   bgmIndex = 0;
   bgmAudio = new Audio(bgmFiles[bgmIndex]);
@@ -1342,12 +1357,15 @@ function startGame() {
 function togglePause() {
   if (!isGameRunning) return;
   isGamePaused = !isGamePaused;
+  const pauseButton = document.getElementById('pauseBtn');
   if (isGamePaused) {
+    pauseButton.textContent = 'RESUME';
     bgmAudio.pause();
     if (coffeeSteamVideo && !coffeeSteamVideo.paused) coffeeSteamVideo.pause();
     window.speechSynthesis.cancel();
     if (currentSentenceAudio) currentSentenceAudio.pause();
   } else {
+    pauseButton.textContent = 'PAUSE';
     bgmAudio.play().catch(e => console.error("BGM resume error:", e));
     if (coffeeSteamVideo && coffeeSteamVideo.paused && coffeeVideoAssetReady) {
         const playPromise = coffeeSteamVideo.play();
@@ -1358,13 +1376,14 @@ function togglePause() {
     if (currentSentenceAudio && currentSentenceAudio.paused) {
         currentSentenceAudio.play().catch(e => console.error("Sentence audio resume error:", e));
     }
-    lastTime = performance.now();
+    lastTime = performance.now(); // Reset lastTime to avoid large delta
     requestAnimationFrame(gameLoop);
   }
 }
 
 function stopGame() {
   isGameRunning = false; isGamePaused = false;
+  document.getElementById('pauseBtn').textContent = 'PAUSE'; // Reset pause button text
   bgmAudio.pause();
   if (coffeeSteamVideo && !coffeeSteamVideo.paused) coffeeSteamVideo.pause();
   window.speechSynthesis.cancel();
@@ -1374,114 +1393,120 @@ function stopGame() {
       currentSentenceAudio = null;
   }
   resetGameStateForStartStop();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas on stop
 }
 
-const expandedMargin = 10;
+const expandedMargin = 10; // For easier touch on UI elements
 
 function handleCanvasInteraction(clientX, clientY, event) {
-  if (!isGameRunning || isGamePaused || isActionLocked) return;
+  if (!isGameRunning || isGamePaused) return;
 
-  const isPlayBtnQuestionTouched = showPlayButtonQuestion && playButtonRectQuestion &&
-    clientX >= (playButtonRectQuestion.x - expandedMargin) &&
-    clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
-    clientY >= (playButtonRectQuestion.y - expandedMargin) &&
-    clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
+  // --- UI Interaction Logic (Play Buttons, Words) ---
+  if (!isActionLocked) { // Only allow UI interaction if not locked
+    const isPlayBtnQuestionTouched = showPlayButtonQuestion && playButtonRectQuestion &&
+      clientX >= (playButtonRectQuestion.x - expandedMargin) &&
+      clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+      clientY >= (playButtonRectQuestion.y - expandedMargin) &&
+      clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
 
-  const isPlayBtnAnswerTouched = showPlayButton && playButtonRect &&
-    clientX >= (playButtonRect.x - expandedMargin) &&
-    clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
-    clientY >= (playButtonRect.y - expandedMargin) &&
-    clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
+    const isPlayBtnAnswerTouched = showPlayButton && playButtonRect &&
+      clientX >= (playButtonRect.x - expandedMargin) &&
+      clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+      clientY >= (playButtonRect.y - expandedMargin) &&
+      clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
 
-  if (isPlayBtnQuestionTouched) {
-    showTranslationForQuestion = true; 
-    showTranslationForAnswer = false; 
-    if (activeWordTranslation) activeWordTranslation.show = false;
-    if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-    activeWordTranslation = null;
-    isActionLocked = true;
-    if (currentQuestionSentenceIndex !== null) {
-        window.speechSynthesis.cancel();
-        playSentenceAudio(currentQuestionSentenceIndex)
-            .catch(err => console.error("Error playing question sentence audio from play button:", err));
-    } else {
-        console.warn("Question play button touched, but currentQuestionSentenceIndex is null.");
-    }
-    event.preventDefault();
-    setTimeout(() => { isActionLocked = false; }, 200);
-    return;
-  }
-  
-  if (isPlayBtnAnswerTouched) {
-    showTranslationForAnswer = true;
-    showTranslationForQuestion = false; 
-    if (activeWordTranslation) activeWordTranslation.show = false;
-    if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-    activeWordTranslation = null;
-    isActionLocked = true;
-    if (currentAnswerSentenceIndex !== null) {
-        window.speechSynthesis.cancel();
-        playSentenceAudio(currentAnswerSentenceIndex)
-            .catch(err => console.error("Error playing answer sentence audio from play button:", err));
-    } else {
-        console.warn("Answer play button touched, but currentAnswerSentenceIndex is null.");
-    }
-    event.preventDefault();
-    setTimeout(() => { isActionLocked = false; }, 200);
-    return;
-  }
-
-  if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
-      for (const wordRect of centerSentenceWordRects) {
-        if (
-          clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
-          clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
-        ) {
+    if (isPlayBtnQuestionTouched) {
+      showTranslationForQuestion = true; 
+      showTranslationForAnswer = false; 
+      if (activeWordTranslation) activeWordTranslation.show = false;
+      if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
+      activeWordTranslation = null;
+      isActionLocked = true;
+      if (currentQuestionSentenceIndex !== null) {
           window.speechSynthesis.cancel();
-          speakWord(wordRect.word);
-          if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-          if (activeWordTranslation) activeWordTranslation.show = false;
-          activeWordTranslation = null;
-          getWordTranslation(wordRect.word).then(translation => {
-              activeWordTranslation = {
-                  word: wordRect.word, translation: translation,
-                  x: wordRect.x, y: wordRect.y, w: wordRect.w, h: wordRect.h,
-                  lineIndex: wordRect.lineIndex, isQuestionWord: wordRect.isQuestionWord, show: true
-              };
-              wordTranslationTimeoutId = setTimeout(() => {
-                  if (activeWordTranslation && activeWordTranslation.word === wordRect.word) {
-                      activeWordTranslation.show = false;
-                  }
-              }, WORD_TRANSLATION_DURATION);
-          }).catch(err => console.error("Error getting word translation:", err));
-          showTranslationForQuestion = false; 
-          showTranslationForAnswer = false;
-          isActionLocked = true;
-          event.preventDefault();
-          setTimeout(() => { isActionLocked = false; }, 200);
-          return;
-        }
+          playSentenceAudio(currentQuestionSentenceIndex)
+              .catch(err => console.error("Error playing question sentence audio from play button:", err));
       }
+      event.preventDefault();
+      setTimeout(() => { isActionLocked = false; }, 200);
+      return; // UI action taken, do not proceed to player movement/shooting
+    }
+    
+    if (isPlayBtnAnswerTouched) {
+      showTranslationForAnswer = true;
+      showTranslationForQuestion = false; 
+      if (activeWordTranslation) activeWordTranslation.show = false;
+      if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
+      activeWordTranslation = null;
+      isActionLocked = true;
+      if (currentAnswerSentenceIndex !== null) {
+          window.speechSynthesis.cancel();
+          playSentenceAudio(currentAnswerSentenceIndex)
+              .catch(err => console.error("Error playing answer sentence audio from play button:", err));
+      }
+      event.preventDefault();
+      setTimeout(() => { isActionLocked = false; }, 200);
+      return; // UI action taken
+    }
+
+    if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
+        for (const wordRect of centerSentenceWordRects) {
+          if (
+            clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
+            clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
+          ) {
+            window.speechSynthesis.cancel();
+            speakWord(wordRect.word);
+            if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
+            if (activeWordTranslation) activeWordTranslation.show = false;
+            activeWordTranslation = null;
+            isActionLocked = true; 
+            getWordTranslation(wordRect.word).then(translation => {
+                activeWordTranslation = {
+                    word: wordRect.word, translation: translation,
+                    x: wordRect.x, y: wordRect.y, w: wordRect.w, h: wordRect.h,
+                    lineIndex: wordRect.lineIndex, isQuestionWord: wordRect.isQuestionWord, show: true
+                };
+                wordTranslationTimeoutId = setTimeout(() => {
+                    if (activeWordTranslation && activeWordTranslation.word === wordRect.word) {
+                        activeWordTranslation.show = false;
+                    }
+                }, WORD_TRANSLATION_DURATION);
+            }).catch(err => console.error("Error getting word translation:", err));
+            showTranslationForQuestion = false; 
+            showTranslationForAnswer = false;
+            event.preventDefault();
+            setTimeout(() => { isActionLocked = false; }, 200);
+            return; // UI action taken
+          }
+        }
+    }
   }
 
-  if (!sentenceActive) {
-      if (activeWordTranslation && activeWordTranslation.show) {
-        activeWordTranslation.show = false;
-        if (wordTranslationTimeoutId) {
-            clearTimeout(wordTranslationTimeoutId);
-            wordTranslationTimeoutId = null;
-        }
-      }
-      showTranslationForQuestion = false; 
-      showTranslationForAnswer = false;
-      player.x = clientX - player.w / 2;
-      player.y = clientY - player.h / 2;
-      player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
-      player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
-      bullets.push({ x: player.x + player.w / 2 - 2.5, y: player.y, w: 5, h: 10, speed: 2.1 });
-      sounds.shoot.play();
+  // --- Player Control Logic (Movement and Shooting) ---
+  // This part executes if no UI element was clicked above, or if isActionLocked was false initially
+
+  // Player Movement (always allowed as per new requirement)
+  player.x = clientX - player.w / 2;
+  player.y = clientY - player.h / 2;
+  player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+  player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
+
+  // Hide word translation and full sentence translations if player moves
+  if (activeWordTranslation && activeWordTranslation.show) {
+    activeWordTranslation.show = false;
+    if (wordTranslationTimeoutId) {
+        clearTimeout(wordTranslationTimeoutId);
+        wordTranslationTimeoutId = null;
+    }
   }
+  showTranslationForQuestion = false; 
+  showTranslationForAnswer = false;
+
+  // Player Shooting (Always allow shooting if game is running and not paused, regardless of sentenceActive)
+  bullets.push({ x: player.x + player.w / 2 - 2.5, y: player.y, w: 5, h: 10, speed: 2.1 });
+  sounds.shoot.play();
+  
   event.preventDefault();
 }
 
@@ -1495,8 +1520,11 @@ canvas.addEventListener('mousedown', e => {
 });
 
 canvas.addEventListener('touchmove', e => {
-  if (!isGameRunning || isGamePaused || isActionLocked || sentenceActive) return;
+  if (!isGameRunning || isGamePaused) return; // Basic checks
+
   const touch = e.touches[0];
+
+  // Prevent player move if dragging started over UI elements
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
     touch.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
     touch.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
@@ -1508,17 +1536,26 @@ canvas.addEventListener('touchmove', e => {
     touch.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
     touch.clientY >= (playButtonRect.y - expandedMargin) &&
     touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-
-  if (isOverPlayBtnQ || isOverPlayBtnA) return;
-
+  
+  let isOverWord = false;
   if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
     for (const wordRect of centerSentenceWordRects) {
       if (
         touch.clientX >= wordRect.x && touch.clientX <= wordRect.x + wordRect.w &&
         touch.clientY >= wordRect.y - wordRect.h/2 && touch.clientY <= wordRect.y + wordRect.h/2
-      ) { return; }
+      ) { 
+        isOverWord = true;
+        break; 
+      }
     }
   }
+
+  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) {
+    e.preventDefault(); // Prevent canvas scroll if dragging over UI
+    return; // Don't move player if drag is over a UI element.
+  }
+
+  // Player movement
   player.x = touch.clientX - player.w / 2;
   player.y = touch.clientY - player.h / 2;
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
@@ -1528,34 +1565,37 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('mousemove', e => {
   if (!isGameRunning || isGamePaused) return;
-  if (isActionLocked && (e.buttons !== 1) ) return;
-  if (sentenceActive && (e.buttons !==1)) return;
+  if (e.buttons !== 1) return; // Only move if mouse button is pressed
 
-  if (e.buttons !== 1) { 
-    const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
-        e.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
-        e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
-        e.clientY >= (playButtonRectQuestion.y - expandedMargin) &&
-        e.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
-    
-    const isOverPlayBtnA = showPlayButton && playButtonRect &&
-        e.clientX >= (playButtonRect.x - expandedMargin) &&
-        e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
-        e.clientY >= (playButtonRect.y - expandedMargin) &&
-        e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-
-    if (isOverPlayBtnQ || isOverPlayBtnA) return; 
-     
-    if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
-      for (const wordRect of centerSentenceWordRects) {
-        if (
-          e.clientX >= wordRect.x && e.clientX <= wordRect.x + wordRect.w &&
-          e.clientY >= wordRect.y - wordRect.h/2 && e.clientY <= wordRect.y + wordRect.h/2
-        ) { return; } 
+  // Prevent player move if dragging started over UI elements
+  const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
+      e.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
+      e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+      e.clientY >= (playButtonRectQuestion.y - expandedMargin) &&
+      e.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
+  
+  const isOverPlayBtnA = showPlayButton && playButtonRect &&
+      e.clientX >= (playButtonRect.x - expandedMargin) &&
+      e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+      e.clientY >= (playButtonRect.y - expandedMargin) &&
+      e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
+  
+  let isOverWord = false;
+  if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
+    for (const wordRect of centerSentenceWordRects) {
+      if (
+        e.clientX >= wordRect.x && e.clientX <= wordRect.x + wordRect.w &&
+        e.clientY >= wordRect.y - wordRect.h/2 && e.clientY <= wordRect.y + wordRect.h/2
+      ) { 
+        isOverWord = true;
+        break;
       }
     }
-  } 
+  }
 
+  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return; // Don't move player if drag is over UI
+  
+  // Player movement
   player.x = e.clientX - player.w / 2;
   player.y = e.clientY - player.h / 2;
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
