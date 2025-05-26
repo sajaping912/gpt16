@@ -249,15 +249,12 @@ const enemyImgs = [
 });
 
 const bgmFiles = [
-  'sounds/background.mp3',
-  'sounds/background1.mp3',
-  'sounds/background2.mp3',
-  'sounds/background3.mp3'
+  'sounds/background.mp3' 
 ];
-let bgmIndex = 0;
+let bgmIndex = 0; 
 let bgmAudio = new Audio(bgmFiles[bgmIndex]);
-bgmAudio.volume = 0.05;
-bgmAudio.loop = false;
+bgmAudio.volume = 0.05; 
+bgmAudio.loop = true;
 
 const volumeBtn = document.getElementById('volumeBtn');
 let isMuted = false;
@@ -279,7 +276,7 @@ async function playSentenceAudio(index) {
 
     const audioFilePath = `sounds/96_audio/${index + 1}.mp3`;
     currentSentenceAudio = new Audio(audioFilePath);
-    currentSentenceAudio.volume = isMuted ? 0 : 0.8;
+    currentSentenceAudio.volume = 0.8; // 항상 0.8 볼륨으로 재생 (isMuted와 무관하게)
 
     currentSentenceAudio.onended = () => {
       currentSentenceAudio = null;
@@ -303,24 +300,19 @@ async function playSentenceAudio(index) {
 
 volumeBtn.onclick = function () {
   isMuted = !isMuted;
-  bgmAudio.volume = isMuted ? 0 : 0.05;
-  if (currentSentenceAudio) {
-      currentSentenceAudio.volume = isMuted ? 0 : 0.8;
+  const targetVolume = isMuted ? 0 : 0.05;
+  if (bgmAudio) {
+    bgmAudio.volume = targetVolume;
+    // BGM이 음소거 해제되고, 게임이 실행 중이며, 일시정지 상태가 아닐 때 재생
+    if (!isMuted && bgmAudio.paused && isGameRunning && !isGamePaused) {
+      bgmAudio.play().catch(e => console.error("BGM play on unmute error:", e));
+    }
   }
+  // currentSentenceAudio 볼륨 조절 로직 제거: 문장 오디오는 isMuted와 독립적으로 재생됨
   updateVolumeIcon();
 };
 updateVolumeIcon();
 
-function playNextBgm() {
-  bgmAudio.removeEventListener('ended', playNextBgm);
-  bgmIndex = (bgmIndex + 1) % bgmFiles.length;
-  bgmAudio = new Audio(bgmFiles[bgmIndex]);
-  bgmAudio.volume = isMuted ? 0 : 0.05;
-  bgmAudio.loop = false;
-  bgmAudio.addEventListener('ended', playNextBgm);
-  bgmAudio.play();
-}
-bgmAudio.addEventListener('ended', playNextBgm);
 
 const sounds = {
   shoot: new Audio('sounds/shoot.mp3'),
@@ -330,12 +322,13 @@ sounds.shoot.volume = 0.05;
 sounds.explosion.volume = 0.05;
 
 setInterval(() => {
-  if (bgmAudio && bgmAudio.volume !== (isMuted ? 0 : 0.05)) {
-    bgmAudio.volume = isMuted ? 0 : 0.05;
+  if (bgmAudio) {
+    const targetVolume = isMuted ? 0 : 0.05;
+    if (bgmAudio.volume !== targetVolume) {
+      bgmAudio.volume = targetVolume;
+    }
   }
-  if (currentSentenceAudio && currentSentenceAudio.volume !== (isMuted ? 0 : 0.8)) {
-    currentSentenceAudio.volume = isMuted ? 0 : 0.8;
-  }
+  // currentSentenceAudio 볼륨 조절 로직 제거
 }, 1000);
 
 
@@ -397,7 +390,7 @@ const ENEMY_SIZE = 40;
 const SENTENCE_VERTICAL_ADJUSTMENT = -70; 
 const ANSWER_OFFSET_Y = 60; 
 const LINE_HEIGHT = 30; 
-const PLAYER_TOUCH_Y_OFFSET = 15; // 플레이어를 터치 지점보다 얼마나 위에 위치시킬지에 대한 값
+const PLAYER_TOUCH_Y_OFFSET = 15; 
 
 let player = { x: 0, y: 0, w: PLAYER_SIZE, h: PLAYER_SIZE };
 let bullets = [];
@@ -415,29 +408,27 @@ const burstColors = [
 let fireworks = null;
 let fireworksState = null;
 
-// --- START: Modified sentence variables ---
-let currentQuestionSentence = null; // { line1, line2 }
-let currentAnswerSentence = null;   // { line1, line2 }
-let currentQuestionSentenceIndex = null; // 원본 sentences 배열에서의 인덱스
-let currentAnswerSentenceIndex = null;   // 원본 sentences 배열에서의 인덱스
-// --- END: Modified sentence variables ---
+let currentQuestionSentence = null; 
+let currentAnswerSentence = null;   
+let currentQuestionSentenceIndex = null; 
+let currentAnswerSentenceIndex = null;   
 
-let centerAlpha = 1.0; // 문장 표시 알파 (공통으로 사용)
-let sentenceActive = false; // 불꽃놀이 중인지 여부
+let centerAlpha = 1.0; 
+let sentenceActive = false; 
 
-let showPlayButton = false; // 답변 문장용 플레이 버튼
-let playButtonRect = null;  // 답변 문장용 플레이 버튼 좌표
-let showPlayButtonQuestion = false; // 질문 문장용 플레이 버튼
-let playButtonRectQuestion = null; // 질문 문장용 플레이 버튼 좌표
+let showPlayButton = false; 
+let playButtonRect = null;  
+let showPlayButtonQuestion = false; 
+let playButtonRectQuestion = null; 
 
 let showTranslationForQuestion = false; 
 let showTranslationForAnswer = false;   
-let isActionLocked = false; // UI 요소 중복 클릭 방지용
+let isActionLocked = false; 
 
 let centerSentenceWordRects = [];
 let activeWordTranslation = null;
 let wordTranslationTimeoutId = null;
-const WORD_TRANSLATION_DURATION = 3000; // ms
+const WORD_TRANSLATION_DURATION = 3000; 
 
 const MODAL_AUX = [
   "can", "cant", "cannot", "could", "couldnt", "will", "would", "shall", "should",
@@ -463,29 +454,28 @@ function isVerb(word) {
     "build", "make", "come", "wear", "fight", "hide", "bring", "catch", "use", "share", "play", "feel", "clean",
     "allowed", "join", "break", "crash", "do", "fly", "cry", "got", "lost", "visit", "talk", "help", "stuck", "eat",
     "go", "melt", "laugh", "can", "see", "fix", "jump", "practiced", "open", "hear", "find", "hiding", "start",
-    "taken", "rolled", "bring", "carry", /* removed "couldn't" */ "set", "keep" // Base verbs only
+    "taken", "rolled", "bring", "carry", "set", "keep" 
   ];
   const lowerWord = word.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (lowerWord === "bringback") return true; // Special case for "bring back"
-  if (lowerWord === "setup") return true; // Special case for "set up"
+  if (lowerWord === "bringback") return true; 
+  if (lowerWord === "setup") return true; 
   return verbs.some(v => lowerWord === v || lowerWord.startsWith(v));
 }
 function isVing(word) {
-  let lw = word.toLowerCase().replace(/[^a-z0-9]/g, ''); // Cleaned word for -ing check
+  let lw = word.toLowerCase().replace(/[^a-z0-9]/g, ''); 
   if (notVerbIng.includes(lw)) return false;
-  if (lw.endsWith('ing') && lw.length > 3) { // Ensure there's a base before "ing"
+  if (lw.endsWith('ing') && lw.length > 3) { 
     let base = lw.slice(0, -3);
-    // Simplified stemming for common cases
-    if (base.endsWith('e') && !base.endsWith('ee') && base !== 'be' && base.length > 1) { // making -> make
-        if(isVerb(base)) return true; // Check if 'mak' is a verb (it's not), then check 'make'
-        if(isVerb(base + 'e')) return true; // Check 'make'
-        if (base.endsWith('i')) { // tying -> tie
+    if (base.endsWith('e') && !base.endsWith('ee') && base !== 'be' && base.length > 1) { 
+        if(isVerb(base)) return true; 
+        if(isVerb(base + 'e')) return true; 
+        if (base.endsWith('i')) { 
              base = base.slice(0, -1) + 'e';
         }
     } else if (base.length > 1 && base.charAt(base.length -1) === base.charAt(base.length-2) && !['ss','ll','ff','zz'].includes(base.slice(-2))) {
-        base = base.slice(0,-1); // running -> run
+        base = base.slice(0,-1); 
     }
-    return isVerb(base) || (base.endsWith('y') && isVerb(base.slice(0, -1) + 'ie')); // crying -> cry
+    return isVerb(base) || (base.endsWith('y') && isVerb(base.slice(0, -1) + 'ie')); 
   }
   return false;
 }
@@ -601,62 +591,47 @@ async function getWordTranslation(word, targetLang = 'ko') {
   return `[${cleanedWord} 뜻]`;
 }
 
-// --- START: Voice loading utility ---
 let voicesPromise = null;
-let _voices = []; // Cache for voices
+let _voices = []; 
 
 function getVoicesReliably() {
-    // console.log("getVoicesReliably: Called.");
     if (voicesPromise && _voices.length > 0) {
-        // console.log("getVoicesReliably: Returning cached voices, count:", _voices.length);
         return Promise.resolve(_voices);
     }
     if (!voicesPromise) {
-        // console.log("getVoicesReliably: Creating new promise for voices.");
         voicesPromise = new Promise((resolve, reject) => {
             const tryGetAndResolveVoices = () => {
                 const currentVoices = window.speechSynthesis.getVoices();
                 if (currentVoices.length) {
-                    _voices = currentVoices; // Cache them
-                    // console.log("getVoicesReliably: Voices loaded, count:", _voices.length, _voices.map(v=>({name: v.name, lang: v.lang, default: v.default})));
+                    _voices = currentVoices; 
                     resolve(_voices);
                     return true;
                 }
-                // console.log("getVoicesReliably: tryGetAndResolveVoices - no voices yet.");
                 return false;
             };
-
-            if (tryGetAndResolveVoices()) return; // Attempt immediate fetch
-
+            if (tryGetAndResolveVoices()) return; 
             if ('onvoiceschanged' in window.speechSynthesis) {
-                // console.log("getVoicesReliably: Using onvoiceschanged event listener.");
                 window.speechSynthesis.onvoiceschanged = () => {
-                    // console.log("getVoicesReliably: onvoiceschanged event fired.");
                     if (tryGetAndResolveVoices()) {
-                        window.speechSynthesis.onvoiceschanged = null; // Clean up listener once voices are resolved
+                        window.speechSynthesis.onvoiceschanged = null; 
                     } else {
-                        // console.log("getVoicesReliably: onvoiceschanged fired but still no voices, trying a small delay.");
                          setTimeout(() => {
-                            // console.log("getVoicesReliably: setTimeout after onvoiceschanged.");
                             if(tryGetAndResolveVoices()){
                                 window.speechSynthesis.onvoiceschanged = null;
                             } else {
                                 console.warn("getVoicesReliably: Voices NOT loaded even after onvoiceschanged + delay.");
-                                resolve([]); // Resolve with empty if still not loaded
+                                resolve([]); 
                                 window.speechSynthesis.onvoiceschanged = null;
                             }
-                        }, 200); // Slightly increased delay
+                        }, 200); 
                     }
                 };
-                // console.log("getVoicesReliably: Manually calling getVoices() to potentially trigger onvoiceschanged.");
-                window.speechSynthesis.getVoices(); // This call is often needed to trigger the population
+                window.speechSynthesis.getVoices(); 
             } else {
-                // console.log("getVoicesReliably: Using polling fallback (no onvoiceschanged).");
                 let attempts = 0;
-                const maxAttempts = 20; // Try for ~4 seconds
+                const maxAttempts = 20; 
                 const intervalId = setInterval(() => {
                     attempts++;
-                    // console.log(`getVoicesReliably: Polling attempt ${attempts}/${maxAttempts}`);
                     if (tryGetAndResolveVoices()) {
                         clearInterval(intervalId);
                     } else if (attempts >= maxAttempts) {
@@ -668,19 +643,15 @@ function getVoicesReliably() {
             }
         }).catch(error => {
             console.error("Error within getVoicesReliably promise:", error);
-            voicesPromise = null; // Reset promise on error
-            _voices = [];         // Clear cache on error
-            return [];            // Return empty array to consumers on error
+            voicesPromise = null; 
+            _voices = [];         
+            return [];            
         });
-    } else {
-        // console.log("getVoicesReliably: voicesPromise already exists, returning it.");
     }
     return voicesPromise;
 }
-// --- END: Voice loading utility ---
 
 async function getVoice(lang = 'en-US', gender = 'female') {
-  // console.log(`getVoice: Seeking voice for lang=${lang}, gender=${gender}`);
   let availableVoices;
   try {
     availableVoices = await getVoicesReliably();
@@ -688,113 +659,64 @@ async function getVoice(lang = 'en-US', gender = 'female') {
     console.error("getVoice: Failed to load voices from getVoicesReliably:", error);
     return null;
   }
-  
   if (!availableVoices || availableVoices.length === 0) {
       console.warn("getVoice: No voices available after getVoicesReliably resolved.");
       return null;
   }
-  // console.log("getVoice: All available voices:", availableVoices.map(v => ({ name: v.name, lang: v.lang, default: v.default, localService: v.localService })));
-
-  // Filter by language first
   const langNormalized = lang.toLowerCase();
   const langVoices = availableVoices.filter(v => v.lang.toLowerCase() === langNormalized);
 
   if (langVoices.length === 0) {
-    // console.log(`getVoice: No voices found for exact language ${langNormalized}. Trying primary language...`);
     const primaryLang = langNormalized.split('-')[0];
     const primaryLangVoices = availableVoices.filter(v => v.lang.toLowerCase().startsWith(primaryLang));
     if (primaryLangVoices.length > 0) {
-        // console.log(`getVoice: Found ${primaryLangVoices.length} voices for primary lang ${primaryLang}. Using first: ${primaryLangVoices[0].name}`);
-        return primaryLangVoices[0]; // Could add gender preference here too
+        return primaryLangVoices[0]; 
     }
-    // console.log(`getVoice: No voices for primary lang ${primaryLang} either.`);
   } else {
-    // We have voices for the exact language, now try to apply gender preference
     if (gender === 'female') {
         const femaleVoices = langVoices.filter(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('susan') || v.name.toLowerCase().includes('eva') || v.name.toLowerCase().includes('google us english') || v.name.toLowerCase().includes('여자') || v.name.toLowerCase().includes(' 여성'));
-        if (femaleVoices.length > 0) {
-            // console.log(`getVoice: Found ${femaleVoices.length} female voices for ${langNormalized}. Selecting first: ${femaleVoices[0].name}`);
-            return femaleVoices[0];
-        }
+        if (femaleVoices.length > 0) return femaleVoices[0];
     } else if (gender === 'male') {
         const maleVoices = langVoices.filter(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('tom') || v.name.toLowerCase().includes('google us english') || v.name.toLowerCase().includes('남자') || v.name.toLowerCase().includes(' 남성'));
-        if (maleVoices.length > 0) {
-            // console.log(`getVoice: Found ${maleVoices.length} male voices for ${langNormalized}. Selecting first: ${maleVoices[0].name}`);
-            return maleVoices[0];
-        }
+        if (maleVoices.length > 0) return maleVoices[0];
     }
-    // If gender preference didn't match or wasn't specified, return the first voice for the language
-    // console.log(`getVoice: No specific gender match in ${langNormalized} voices, or gender not specified. Selecting first lang match: ${langVoices[0].name}`);
     return langVoices[0];
   }
-  
-  // If no language match at all, try default system voice
   const defaultVoice = availableVoices.find(v => v.default);
-  if (defaultVoice) {
-    // console.log(`getVoice: No language match. Using system default voice: ${defaultVoice.name} (lang: ${defaultVoice.lang})`);
-    return defaultVoice;
-  }
-
-  // Absolute fallback: first voice in the list, if any
-  if (availableVoices.length > 0) {
-    // console.log(`getVoice: No language or default match. Using first available voice overall: ${availableVoices[0].name} (lang: ${availableVoices[0].lang})`);
-    return availableVoices[0];
-  }
-  
+  if (defaultVoice) return defaultVoice;
+  if (availableVoices.length > 0) return availableVoices[0];
   console.warn("getVoice: Exhausted all fallbacks. No voice found.");
   return null;
 }
 
-
 async function speakWord(word) {
   const cleanWord = word.replace(/[^a-zA-Z0-9]/g, "").trim();
-  if (!cleanWord) {
-    // console.log("speakWord: Cleaned word is empty, skipping.");
-    return;
-  }
-
-  // console.log(`speakWord: Preparing to speak "${cleanWord}"`);
-
+  if (!cleanWord) return;
   try {
-    await getVoicesReliably(); // Ensure voices are attempted to be loaded.
+    await getVoicesReliably(); 
   } catch (error) {
     console.error(`speakWord: Critical error ensuring voices were loaded for word "${cleanWord}":`, error);
-    return; // Cannot proceed if voice loading itself fails.
+    return; 
   }
-
   return new Promise(async (resolve, reject) => {
     try {
-      // window.speechSynthesis.cancel(); // This is now reliably called in handleCanvasInteraction
-
       const utter = new window.SpeechSynthesisUtterance(cleanWord);
-      utter.lang = 'en-US'; // Set desired language for the utterance
-      utter.rate = 0.92;    // Adjusted rate
+      utter.lang = 'en-US'; 
+      utter.rate = 0.92;    
       utter.pitch = 1.0;
-      utter.volume = 1.0;   // Ensure full volume for TTS
-
+      utter.volume = 1.0;   
       const voice = await getVoice('en-US', 'female');
       if (voice) {
         utter.voice = voice;
-        // console.log(`speakWord: Assigned voice: "${voice.name}" (lang: ${voice.lang}, default: ${voice.default}) for "${cleanWord}"`);
       } else {
-        console.warn(`speakWord: No specific voice found for 'en-US' female for word "${cleanWord}". Browser will use its default for 'en-US' or system default.`);
+        console.warn(`speakWord: No specific voice found for 'en-US' female for word "${cleanWord}".`);
       }
-      
-      utter.onstart = () => {
-        // console.log(`speakWord: Event 'onstart' for "${cleanWord}"`);
-      };
-      utter.onend = () => {
-        // console.log(`speakWord: Event 'onend' for "${cleanWord}"`);
-        resolve();
-      };
+      utter.onend = () => resolve();
       utter.onerror = (event) => {
         console.error(`speakWord: Event 'onerror' for word "${cleanWord}". Error: ${event.error}`, event);
         reject(event.error || new Error(`Unknown speech synthesis error for "${cleanWord}"`));
       };
-      
-      // console.log(`speakWord: Calling window.speechSynthesis.speak() for "${cleanWord}" with utterance:`, utter);
       window.speechSynthesis.speak(utter);
-
     } catch (error) {
         console.error(`speakWord: Exception during speakWord execution for "${cleanWord}":`, error);
         reject(error);
@@ -803,7 +725,7 @@ async function speakWord(word) {
 }
 
 const englishFont = "23.52px Arial";
-const translationFont = "17.0px Arial"; // 10% 축소
+const translationFont = "17.0px Arial"; 
 
 function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockContext) {
     if (!sentenceObject) return { lastY: baseY, wordRects: [] };
@@ -831,15 +753,12 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
         let wordMetrics = words.map(w => ctx.measureText(w));
         let spaceWidth = ctx.measureText(" ").width;
         let totalLineWidth = wordMetrics.reduce((sum, m) => sum + m.width, 0) + spaceWidth * (words.length - 1);
-        
         let currentX = (canvas.width - totalLineWidth) / 2;
-
         const wordHeight = parseFloat(englishFont.match(/(\d*\.?\d*)px/)[1]);
         for (let j = 0; j < words.length; j++) {
             let rawWord = words[j];
             let cleanedWordForColor = rawWord.replace(/[^a-zA-Z0-9]/g, ""); 
             let lowerCleanedWordForColor = cleanedWordForColor.toLowerCase();
-            
             let color = "#fff";
             if (isCurrentBlockContentQuestionType && i === 0 && j === 0 && (isAux(lowerCleanedWordForColor) || isWh(lowerCleanedWordForColor))) {
                 color = "#40b8ff";
@@ -869,46 +788,30 @@ function drawSingleSentenceBlock(sentenceObject, baseY, isQuestionBlock, blockCo
 
 function drawPlayButton(buttonRect, baseScaleForOriginalSize) {
     if (!buttonRect) return;
-
-    const visualShrinkFactor = 0.8; // 시각적으로 20% 축소
-
-    // 축소된 시각적 크기 계산
+    const visualShrinkFactor = 0.8; 
     const visualWidth = buttonRect.w * visualShrinkFactor;
     const visualHeight = buttonRect.h * visualShrinkFactor;
-
-    // 축소된 버튼을 원래 buttonRect의 중앙에 위치시키기 위한 좌표
     const visualX = buttonRect.x + (buttonRect.w - visualWidth) / 2;
     const visualY = buttonRect.y + (buttonRect.h - visualHeight) / 2;
-    
-    // 버튼 내부 요소들(테두리 두께, 아이콘 크기 등)도 축소 비율에 맞게 조정
     const internalElementScale = baseScaleForOriginalSize * visualShrinkFactor;
-
     ctx.save();
-    // Background
     ctx.globalAlpha = Math.min(1.0, centerAlpha + 0.2) * 0.82;
     ctx.fillStyle = "#222";
     ctx.beginPath();
-    // 모서리 둥글기도 스케일에 맞춰 조정
     const cornerRadius = 20 * internalElementScale; 
     ctx.roundRect(visualX, visualY, visualWidth, visualHeight, cornerRadius);
     ctx.fill();
-    
-    // Border
     ctx.globalAlpha = centerAlpha;
     ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 3 * internalElementScale; // 테두리 두께도 스케일 조정
-    ctx.beginPath(); // 새 경로 시작 (축소된 사각형용)
+    ctx.lineWidth = 3 * internalElementScale; 
+    ctx.beginPath(); 
     ctx.roundRect(visualX, visualY, visualWidth, visualHeight, cornerRadius);
     ctx.stroke();
-    
-    // Triangle (Play icon)
     ctx.fillStyle = "#4CAF50";
     ctx.beginPath();
     const playSize = 36 * internalElementScale; 
     const btnPad = 18 * internalElementScale;   
     const triangleSymbolVerticalLineXOffset = 6 * internalElementScale;
-
-    // 삼각형 좌표는 축소된 시각적 버튼(visualX, visualY, visualWidth, visualHeight) 기준으로 계산
     ctx.moveTo(visualX + btnPad + triangleSymbolVerticalLineXOffset, visualY + btnPad);
     ctx.lineTo(visualX + btnPad + triangleSymbolVerticalLineXOffset, visualY + visualHeight - btnPad);
     ctx.lineTo(visualX + btnPad + playSize, visualY + visualHeight / 2);
@@ -927,14 +830,11 @@ function drawCenterSentence() {
     ctx.globalAlpha = centerAlpha;
     const mainRenderAreaYCenter = topOffset + (canvas.height - topOffset) / 2;
     const questionBlockCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT; 
-
     let questionBlockContext = { verbColored: false };
     let questionDrawOutput = { lastY: questionBlockCenterY - LINE_HEIGHT, wordRects: [] }; 
-
     const baseOverallScale = 0.49;
     const visualReductionFactor = 0.8; 
-    const currentVisualScaleForHitbox = baseOverallScale * visualReductionFactor; // 히트박스 계산용 스케일
-    
+    const currentVisualScaleForHitbox = baseOverallScale * visualReductionFactor; 
     const btnH_forHitbox = (36 * currentVisualScaleForHitbox) + (18 * currentVisualScaleForHitbox * 2); 
     const btnW_forHitbox = (36 * currentVisualScaleForHitbox) + (18 * currentVisualScaleForHitbox * 2); 
     const btnX = 10;
@@ -942,14 +842,11 @@ function drawCenterSentence() {
     if (currentQuestionSentence) {
         questionDrawOutput = drawSingleSentenceBlock(currentQuestionSentence, questionBlockCenterY, true, questionBlockContext);
         centerSentenceWordRects.push(...questionDrawOutput.wordRects);
-
         const questionButtonActualCenterY = questionBlockCenterY; 
-        
         playButtonRectQuestion = { x: btnX, y: questionButtonActualCenterY - btnH_forHitbox / 2, w: btnW_forHitbox, h: btnH_forHitbox };
         if (showPlayButtonQuestion) {
             drawPlayButton(playButtonRectQuestion, currentVisualScaleForHitbox);
         }
-
         if (showTranslationForQuestion && currentQuestionSentenceIndex !== null && translations[currentQuestionSentenceIndex]) {
             ctx.save();
             ctx.globalAlpha = centerAlpha;
@@ -969,25 +866,20 @@ function drawCenterSentence() {
     if (currentAnswerSentence) {
         const answerLines = [currentAnswerSentence.line1, currentAnswerSentence.line2].filter(l => l && l.trim());
         const answerBlockHeight = answerLines.length * LINE_HEIGHT;
-        
         let topYForAnswerBlock;
         if (currentQuestionSentence) {
             topYForAnswerBlock = questionDrawOutput.lastY + ANSWER_OFFSET_Y;
         } else { 
             topYForAnswerBlock = questionBlockCenterY - (answerBlockHeight / 2);
         }
-        
         const answerButtonActualCenterY = topYForAnswerBlock + answerBlockHeight / 2;
         playButtonRect = { x: btnX, y: answerButtonActualCenterY - btnH_forHitbox / 2, w: btnW_forHitbox, h: btnH_forHitbox };
-
         if (showPlayButton) {
             drawPlayButton(playButtonRect, currentVisualScaleForHitbox);
         }
-        
         let answerBlockContext = { verbColored: false };
         const answerDrawOutput = drawSingleSentenceBlock(currentAnswerSentence, topYForAnswerBlock, false, answerBlockContext);
         centerSentenceWordRects.push(...answerDrawOutput.wordRects);
-
         if (showTranslationForAnswer && currentAnswerSentenceIndex !== null && translations[currentAnswerSentenceIndex]) {
             ctx.save();
             ctx.globalAlpha = centerAlpha;
@@ -1014,13 +906,11 @@ function drawCenterSentence() {
         ctx.fillStyle = "#98FB98";
         ctx.shadowColor = "rgba(0,0,0,0.6)";
         ctx.shadowBlur = 2; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
-        
         const englishWordMiddleY = activeWordTranslation.y;
         const englishWordHalfHeight = activeWordTranslation.h / 2;
         const padding = 6;
         let tx = activeWordTranslation.x + activeWordTranslation.w / 2;
         let ty;
-
         if (activeWordTranslation.lineIndex === 0) { 
             ctx.textBaseline = "bottom";
             ty = englishWordMiddleY - englishWordHalfHeight - padding;
@@ -1028,7 +918,6 @@ function drawCenterSentence() {
             ctx.textBaseline = "top";
             ty = englishWordMiddleY + englishWordHalfHeight + padding;
         }
-        
         ctx.fillText(activeWordTranslation.translation, tx, ty);
         ctx.restore();
     }
@@ -1069,22 +958,16 @@ function getClockwiseAngle(index, total) {
 function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosionX, explosionY) {
     let roleOfNewSentence;
     let questionTextForLayout = "";
-
     if (globalSentenceIndex % 2 === 0) { 
         roleOfNewSentence = 'question';
     } else { 
         roleOfNewSentence = 'answer';
     }
-
     if (roleOfNewSentence === 'question') {
-        currentQuestionSentence = null;
-        currentAnswerSentence = null;
-        currentQuestionSentenceIndex = null;
-        currentAnswerSentenceIndex = null;
-        showPlayButton = false;
-        showPlayButtonQuestion = false; 
-        showTranslationForQuestion = false; 
-        showTranslationForAnswer = false;   
+        currentQuestionSentence = null; currentAnswerSentence = null;
+        currentQuestionSentenceIndex = null; currentAnswerSentenceIndex = null;
+        showPlayButton = false; showPlayButtonQuestion = false; 
+        showTranslationForQuestion = false; showTranslationForAnswer = false;   
     } else { 
         if (currentQuestionSentence && currentQuestionSentenceIndex === globalSentenceIndex - 1) {
             questionTextForLayout = (currentQuestionSentence.line1 + " " + currentQuestionSentence.line2).trim();
@@ -1092,61 +975,40 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
             questionTextForLayout = sentences[globalSentenceIndex - 1];
         } else {
             questionTextForLayout = " "; 
-            console.warn("Answer sentence firework initiated without a clear preceding question for layout.");
         }
-        currentAnswerSentence = null;
-        currentAnswerSentenceIndex = null;
+        currentAnswerSentence = null; currentAnswerSentenceIndex = null;
         showPlayButton = false; 
-        showTranslationForQuestion = false; 
-        showTranslationForAnswer = false;   
+        showTranslationForQuestion = false; showTranslationForAnswer = false;   
     }
-
     if (activeWordTranslation) activeWordTranslation.show = false;
     activeWordTranslation = null;
     if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
     centerSentenceWordRects = []; 
-
     const [fireworkLine1, fireworkLine2] = splitSentence(sentenceTextForFireworks);
     const wordsForFireworks = [];
     if (fireworkLine1.trim()) wordsForFireworks.push(...fireworkLine1.split(" ").map(word => ({ word, row: 0 })));
     if (fireworkLine2.trim()) wordsForFireworks.push(...fireworkLine2.split(" ").map(word => ({ word, row: 1 })));
-
     if(wordsForFireworks.length === 0) {
-        sentenceActive = false;
-        return;
+        sentenceActive = false; return;
     }
-
-    const baseRadius = 51.2 * 0.88;
-    const maxRadius = 120.96 * 0.88;
-    let centerX = explosionX;
-    const margin = 8;
+    const baseRadius = 51.2 * 0.88; const maxRadius = 120.96 * 0.88;
+    let centerX = explosionX; const margin = 8;
     if (centerX - maxRadius < margin) centerX = margin + maxRadius;
     if (centerX + maxRadius > canvas.width - margin) centerX = canvas.width - margin - maxRadius;
-
     fireworks = [];
     fireworksState = {
-        t: 0,
-        phase: "explode",
-        holdDuration: 60,
-        explodeDuration: 180,
-        gatherDuration: 45,
-        originX: centerX,
-        originY: explosionY,
-        sentenceTextToDisplayAfter: sentenceTextForFireworks,
-        finalSentenceIndex: globalSentenceIndex, 
-        roleOfNewSentence: roleOfNewSentence,
+        t: 0, phase: "explode", holdDuration: 60, explodeDuration: 180, gatherDuration: 45,
+        originX: centerX, originY: explosionY, sentenceTextToDisplayAfter: sentenceTextForFireworks,
+        finalSentenceIndex: globalSentenceIndex, roleOfNewSentence: roleOfNewSentence,
     };
-
     const mainRenderAreaYCenter = topOffset + (canvas.height - topOffset) / 2;
     const [sL1_fw, sL2_fw] = splitSentence(sentenceTextForFireworks);
     const sLines_fw = [sL1_fw, sL2_fw].filter(l => l && l.trim());
     const sentenceBlockFinalHeight_fw = sLines_fw.length * LINE_HEIGHT;
-
     for (let j = 0; j < wordsForFireworks.length; j++) {
         const angle = getClockwiseAngle(j, wordsForFireworks.length);
         const color = burstColors[j % burstColors.length];
         let wordTargetY;
-
         if (roleOfNewSentence === 'question') {
             const qBlockFinalCenterY = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT;
             wordTargetY = qBlockFinalCenterY - sentenceBlockFinalHeight_fw / 2 + (wordsForFireworks[j].row * LINE_HEIGHT) + (LINE_HEIGHT / 2);
@@ -1156,7 +1018,6 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
             const questionBlockActualHeight_layout = qTextLines_layout.length * LINE_HEIGHT;
             const questionBlockActualCenterY_layout = mainRenderAreaYCenter + SENTENCE_VERTICAL_ADJUSTMENT;
             const questionBlockActualBottomY_layout = questionBlockActualCenterY_layout + questionBlockActualHeight_layout / 2;
-            
             let answerBlockFinalTopY_fw;
             if (qTextLines_layout.length > 0) { 
                 answerBlockFinalTopY_fw = questionBlockActualBottomY_layout + ANSWER_OFFSET_Y;
@@ -1165,54 +1026,36 @@ function startFireworks(sentenceTextForFireworks, globalSentenceIndex, explosion
             }
             wordTargetY = answerBlockFinalTopY_fw + (wordsForFireworks[j].row * LINE_HEIGHT) + (LINE_HEIGHT / 2);
         }
-
         fireworks.push({
-            text: wordsForFireworks[j].word,
-            angle: angle,
-            rowInSentence: wordsForFireworks[j].row,
-            x: centerX,
-            y: explosionY,
-            radius: baseRadius,
-            maxRadius: maxRadius,
-            color: color,
-            targetX: 0, 
-            targetY: wordTargetY,
+            text: wordsForFireworks[j].word, angle: angle, rowInSentence: wordsForFireworks[j].row,
+            x: centerX, y: explosionY, radius: baseRadius, maxRadius: maxRadius,
+            color: color, targetX: 0, targetY: wordTargetY,
         });
     }
-    sentenceActive = true;
-    centerAlpha = 1.0;
+    sentenceActive = true; centerAlpha = 1.0;
 }
-
 
 function updateFireworks() {
   if (!fireworks || !fireworksState) return false;
   fireworksState.t++;
-
   if (fireworksState.phase === "explode") {
     const progress = Math.min(fireworksState.t / fireworksState.explodeDuration, 1);
     const ease = 1 - Math.pow(1 - progress, 2);
     const currentRadius = 51.2 * 0.88 + (120.96 * 0.88 - 51.2 * 0.88) * ease;
-
     fireworks.forEach((fw) => {
       fw.radius = currentRadius; 
       fw.x = fireworksState.originX + Math.cos(fw.angle) * fw.radius;
       fw.y = fireworksState.originY + Math.sin(fw.angle) * fw.radius;
     });
-    if (progress >= 1) {
-      fireworksState.phase = "hold";
-      fireworksState.t = 0;
-    }
+    if (progress >= 1) { fireworksState.phase = "hold"; fireworksState.t = 0; }
   } else if (fireworksState.phase === "hold") {
     if (fireworksState.t >= fireworksState.holdDuration) {
-      fireworksState.phase = "gather";
-      fireworksState.t = 0;
-      centerAlpha = 0; 
+      fireworksState.phase = "gather"; fireworksState.t = 0; centerAlpha = 0; 
     }
   } else if (fireworksState.phase === "gather") {
     const progress = Math.min(fireworksState.t / fireworksState.gatherDuration, 1);
     const ease = Math.pow(progress, 2);
-    const tempCtx = canvas.getContext('2d');
-    tempCtx.font = englishFont;
+    const tempCtx = canvas.getContext('2d'); tempCtx.font = englishFont;
     const [sentenceLine1Gather, sentenceLine2Gather] = splitSentence(fireworksState.sentenceTextToDisplayAfter);
     let sentenceLineWordArrays = [];
     if(sentenceLine1Gather.trim()) sentenceLineWordArrays.push(sentenceLine1Gather.split(" "));
@@ -1223,9 +1066,7 @@ function updateFireworks() {
         let wordMetrics = wordsInLine.map(w => tempCtx.measureText(w));
         let spaceWidth = tempCtx.measureText(" ").width;
         let totalLineWidth = wordMetrics.reduce((sum, m) => sum + m.width, 0) + spaceWidth * (wordsInLine.length - 1);
-        
         let currentXTargetForLine = (canvas.width - totalLineWidth) / 2;
-        
         for (let j = 0; j < wordsInLine.length; j++) {
             if (fireworks[wordIndexInFireworks]) {
                 fireworks[wordIndexInFireworks].targetX = currentXTargetForLine + wordMetrics.slice(0, j).reduce((sum, m) => sum + m.width, 0) + spaceWidth * j;
@@ -1237,7 +1078,6 @@ function updateFireworks() {
       fw.x += (fw.targetX - fw.x) * ease * 0.2;
       fw.y += (fw.targetY - fw.y) * ease * 0.2;
     });
-
     if (progress >= 1) {
         fireworksState.phase = "done";
         const newSentenceText = fireworksState.sentenceTextToDisplayAfter;
@@ -1246,51 +1086,31 @@ function updateFireworks() {
         const [newLine1, newLine2] = splitSentence(newSentenceText);
         const newSentenceObject = { line1: newLine1, line2: newLine2 };
         let playAudioForThisSentence = false; 
-
         if (roleOfNewSentence === 'question') {
-            currentQuestionSentence = newSentenceObject;
-            currentQuestionSentenceIndex = newSentenceIndex;
-            currentAnswerSentence = null; 
-            currentAnswerSentenceIndex = null;
-            showPlayButton = false; 
-            showPlayButtonQuestion = true; 
-            playAudioForThisSentence = true; 
+            currentQuestionSentence = newSentenceObject; currentQuestionSentenceIndex = newSentenceIndex;
+            currentAnswerSentence = null; currentAnswerSentenceIndex = null;
+            showPlayButton = false; showPlayButtonQuestion = true; playAudioForThisSentence = true; 
         } else { 
             const questionIndexOfThisAnswer = newSentenceIndex - 1;
             if (questionIndexOfThisAnswer >= 0 && sentences[questionIndexOfThisAnswer]) {
                 if (!currentQuestionSentence || currentQuestionSentenceIndex !== questionIndexOfThisAnswer) {
                     const [qL1, qL2] = splitSentence(sentences[questionIndexOfThisAnswer]);
-                    currentQuestionSentence = {line1: qL1, line2: qL2};
-                    currentQuestionSentenceIndex = questionIndexOfThisAnswer;
+                    currentQuestionSentence = {line1: qL1, line2: qL2}; currentQuestionSentenceIndex = questionIndexOfThisAnswer;
                     showPlayButtonQuestion = true; 
                 }
             } else {
-                currentQuestionSentence = null;
-                currentQuestionSentenceIndex = null;
-                showPlayButtonQuestion = false; 
+                currentQuestionSentence = null; currentQuestionSentenceIndex = null; showPlayButtonQuestion = false; 
             }
-            currentAnswerSentence = newSentenceObject;
-            currentAnswerSentenceIndex = newSentenceIndex;
-            showPlayButton = true; 
-            playAudioForThisSentence = true; 
+            currentAnswerSentence = newSentenceObject; currentAnswerSentenceIndex = newSentenceIndex;
+            showPlayButton = true; playAudioForThisSentence = true; 
         }
-
-        centerAlpha = 1.0; 
-        fireworks = null;
-        fireworksState = null;
-        sentenceActive = false;
+        centerAlpha = 1.0; fireworks = null; fireworksState = null; sentenceActive = false;
         if (activeWordTranslation) activeWordTranslation.show = false;
-        activeWordTranslation = null;
-        if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-
+        activeWordTranslation = null; if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
         if (playAudioForThisSentence) {
             let audioIndexToPlay = null;
-            if (roleOfNewSentence === 'question' && currentQuestionSentenceIndex !== null) {
-                audioIndexToPlay = currentQuestionSentenceIndex;
-            } else if (roleOfNewSentence === 'answer' && currentAnswerSentenceIndex !== null) {
-                audioIndexToPlay = currentAnswerSentenceIndex;
-            }
-
+            if (roleOfNewSentence === 'question' && currentQuestionSentenceIndex !== null) audioIndexToPlay = currentQuestionSentenceIndex;
+            else if (roleOfNewSentence === 'answer' && currentAnswerSentenceIndex !== null) audioIndexToPlay = currentAnswerSentenceIndex;
             if (audioIndexToPlay !== null) {
                 setTimeout(() => {
                     window.speechSynthesis.cancel(); 
@@ -1302,7 +1122,6 @@ function updateFireworks() {
     }
   }
 }
-
 
 function spawnEnemy() {
   const idx = Math.floor(Math.random() * enemyImgs.length);
@@ -1317,14 +1136,12 @@ function update(delta) {
   enemies = enemies.filter(e => e.y <= canvas.height);
   while (enemies.length < 2) spawnEnemy();
   enemies.forEach(e => e.y += 1);
-
   bullets = bullets.filter(b => b.y + b.h > 0).map(b => { b.y -= b.speed; return b; });
   enemyBullets = enemyBullets.filter(b => b.y < canvas.height).map(b => { b.y += b.speed; return b; });
-
   bullets.forEach((b, bi) => {
     enemies.forEach((e, ei) => {
       if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
-        if (!sentenceActive) { // Only trigger fireworks if not already in sentence animation
+        if (!sentenceActive) { 
             const sentenceToFirework = sentences[sentenceIndex];
             const globalIndexOfSentence = sentenceIndex; 
             startFireworks(sentenceToFirework, globalIndexOfSentence, e.x + e.w / 2, e.y + e.h / 2);
@@ -1332,23 +1149,16 @@ function update(delta) {
             localStorage.setItem('sentenceIndex', sentenceIndex.toString());
             sounds.explosion.play();
         }
-        enemies.splice(ei, 1);
-        bullets.splice(bi, 1);
+        enemies.splice(ei, 1); bullets.splice(bi, 1);
       }
     });
   });
-
   if (sentenceActive) updateFireworks();
-
-  // Reset UI states if no sentences are active or being animated
   if (!currentQuestionSentence && !currentAnswerSentence && !sentenceActive) {
-    showPlayButton = false; 
-    showPlayButtonQuestion = false;
-    showTranslationForQuestion = false; 
-    showTranslationForAnswer = false;   
+    showPlayButton = false; showPlayButtonQuestion = false;
+    showTranslationForQuestion = false; showTranslationForAnswer = false;   
     if (activeWordTranslation) activeWordTranslation.show = false;
-    // isActionLocked is handled by setTimeout, so no need to reset it here explicitly
-  } else if (!sentenceActive) { // If sentences are present but not animating
+  } else if (!sentenceActive) { 
       showPlayButtonQuestion = !!currentQuestionSentence;
       showPlayButton = !!currentAnswerSentence;
   }
@@ -1357,22 +1167,17 @@ function update(delta) {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
-
   enemies.forEach(e => {
     if (e.imgIndex === 1) {
       const scaleFactor = 1.3;
-      const enlargedWidth = ENEMY_SIZE * scaleFactor;
-      const enlargedHeight = ENEMY_SIZE * scaleFactor;
-      const enlargedX = e.x - (enlargedWidth - ENEMY_SIZE) / 2;
-      const enlargedY = e.y - (enlargedHeight - ENEMY_SIZE) / 2;
+      const enlargedWidth = ENEMY_SIZE * scaleFactor; const enlargedHeight = ENEMY_SIZE * scaleFactor;
+      const enlargedX = e.x - (enlargedWidth - ENEMY_SIZE) / 2; const enlargedY = e.y - (enlargedHeight - ENEMY_SIZE) / 2;
       ctx.drawImage(e.img, enlargedX, enlargedY, enlargedWidth, enlargedHeight);
       if (coffeeSteamVideo && coffeeVideoAssetReady && coffeeSteamVideo.readyState >= HTMLVideoElement.HAVE_CURRENT_DATA) {
         const videoAspectRatio = (coffeeSteamVideo.videoWidth > 0 && coffeeSteamVideo.videoHeight > 0) ? coffeeSteamVideo.videoWidth / coffeeSteamVideo.videoHeight : 1;
-        let steamWidth = enlargedWidth * 0.7;
-        let steamHeight = steamWidth / videoAspectRatio;
+        let steamWidth = enlargedWidth * 0.7; let steamHeight = steamWidth / videoAspectRatio;
         const baseX = enlargedX + (enlargedWidth - steamWidth) / 2;
-        const baseYOffset = steamHeight * 0.65;
-        const additionalYOffset = 30;
+        const baseYOffset = steamHeight * 0.65; const additionalYOffset = 30;
         const baseY = enlargedY - baseYOffset - additionalYOffset;
         const steamInstances = [
           { offsetXRatio: 0,    offsetYRatio: 0,     scale: 1.0, alpha: 0.6 },
@@ -1381,10 +1186,8 @@ function draw() {
         ];
         steamInstances.forEach(instance => {
           ctx.save();
-          const currentSteamWidth = steamWidth * instance.scale;
-          const currentSteamHeight = steamHeight * instance.scale;
-          const offsetX = steamWidth * instance.offsetXRatio;
-          const offsetY = steamHeight * instance.offsetYRatio;
+          const currentSteamWidth = steamWidth * instance.scale; const currentSteamHeight = steamHeight * instance.scale;
+          const offsetX = steamWidth * instance.offsetXRatio; const offsetY = steamHeight * instance.offsetYRatio;
           const steamX = baseX + offsetX - (currentSteamWidth - steamWidth) / 2;
           const steamY = baseY + offsetY - (currentSteamHeight - steamHeight) / 2;
           ctx.globalAlpha = instance.alpha;
@@ -1396,51 +1199,37 @@ function draw() {
       ctx.drawImage(e.img, e.x, e.y, ENEMY_SIZE, ENEMY_SIZE);
     }
   });
-
   ctx.fillStyle = 'red';
   bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
-
   const previousGlobalCenterAlpha = centerAlpha;
-
   if (sentenceActive && fireworks && fireworksState) {
     if (fireworksState.roleOfNewSentence === 'answer' && currentQuestionSentence) {
       centerAlpha = 1.0;
-      const tempAnswerSentence = currentAnswerSentence; 
-      const tempAnswerIndex = currentAnswerSentenceIndex;
-      currentAnswerSentence = null; 
-      currentAnswerSentenceIndex = null;
+      const tempAnswerSentence = currentAnswerSentence; const tempAnswerIndex = currentAnswerSentenceIndex;
+      currentAnswerSentence = null; currentAnswerSentenceIndex = null;
       drawCenterSentence(); 
-      currentAnswerSentence = tempAnswerSentence; 
-      currentAnswerSentenceIndex = tempAnswerIndex;
+      currentAnswerSentence = tempAnswerSentence; currentAnswerSentenceIndex = tempAnswerIndex;
     }
     centerAlpha = previousGlobalCenterAlpha; 
     drawFireworks();
   } else {
     if (currentQuestionSentence || currentAnswerSentence) {
-      centerAlpha = 1.0; 
-      drawCenterSentence();
+      centerAlpha = 1.0; drawCenterSentence();
     }
   }
-  
-  if (!sentenceActive) {
-    centerAlpha = 1.0;
-  } else if (fireworksState && fireworksState.phase === "gather") {
-    // centerAlpha is already 0 from updateFireworks
-  } else {
-    centerAlpha = previousGlobalCenterAlpha; 
-  }
+  if (!sentenceActive) centerAlpha = 1.0;
+  else if (fireworksState && fireworksState.phase === "gather") {}
+  else centerAlpha = previousGlobalCenterAlpha; 
 }
 
 function gameLoop(time) {
   if (!isGameRunning || isGamePaused) {
-      // Draw even if paused to show current state, but don't update
       if (isGamePaused) draw(); 
       return;
   }
   const delta = time - lastTime;
   lastTime = time;
-  update(delta);
-  draw();
+  update(delta); draw();
   requestAnimationFrame(gameLoop);
 }
 
@@ -1456,16 +1245,11 @@ function resetGameStateForStartStop() {
     sentenceActive = false; centerAlpha = 1.0;
     showPlayButton = false; playButtonRect = null;
     showPlayButtonQuestion = false; playButtonRectQuestion = null; 
-    showTranslationForQuestion = false; 
-    showTranslationForAnswer = false;   
+    showTranslationForQuestion = false; showTranslationForAnswer = false;   
     if (activeWordTranslation) activeWordTranslation.show = false;
     activeWordTranslation = null;
-    if (wordTranslationTimeoutId) {
-        clearTimeout(wordTranslationTimeoutId);
-        wordTranslationTimeoutId = null;
-    }
-    centerSentenceWordRects = [];
-    isActionLocked = false; 
+    if (wordTranslationTimeoutId) { clearTimeout(wordTranslationTimeoutId); wordTranslationTimeoutId = null; }
+    centerSentenceWordRects = []; isActionLocked = false; 
 }
 
 function startGame() {
@@ -1476,24 +1260,44 @@ function startGame() {
   }
   isGameRunning = true;
   isGamePaused = false;
-  document.getElementById('pauseBtn').textContent = 'PAUSE'; // Ensure pause button text is correct
-  try { bgmAudio.pause(); bgmAudio.currentTime = 0; } catch (e) {}
-  bgmIndex = 0;
-  bgmAudio = new Audio(bgmFiles[bgmIndex]);
-  bgmAudio.volume = isMuted ? 0 : 0.05;
-  bgmAudio.loop = false;
-  bgmAudio.addEventListener('ended', playNextBgm);
-  bgmAudio.play().catch(e => console.error("BGM play error on start:", e));
+  document.getElementById('pauseBtn').textContent = 'PAUSE';
+
+  if (bgmAudio) {
+    bgmAudio.pause();
+  }
+  
+  bgmIndex = 0; 
+  bgmAudio = new Audio(bgmFiles[bgmIndex]); 
+  bgmAudio.volume = isMuted ? 0 : 0.05; 
+  bgmAudio.loop = true; 
+
+  console.log('Attempting to play BGM. Source:', bgmAudio.src, 'Volume:', bgmAudio.volume, 'Loop:', bgmAudio.loop, 'Muted:', isMuted);
+  if (navigator.userActivation) {
+    console.log('navigator.userActivation.hasBeenActive:', navigator.userActivation.hasBeenActive);
+  } else {
+    console.log('navigator.userActivation API not available.');
+  }
+
+  const playPromise = bgmAudio.play();
+  if (playPromise !== undefined) {
+    playPromise.then(_ => {
+      console.log('BGM playback started successfully or is already playing.');
+    }).catch(error => {
+      console.error('BGM play error on start:', error);
+      alert("배경음악 자동 재생에 실패했습니다. 페이지를 클릭하거나 브라우저 설정을 확인해주세요.");
+    });
+  } else {
+     console.log('bgmAudio.play() did not return a promise. Playback might be handled differently or failed silently.');
+  }
 
   if (coffeeSteamVideo && coffeeVideoAssetReady) {
     coffeeSteamVideo.currentTime = 0;
-    const playPromise = coffeeSteamVideo.play();
-    if (playPromise !== undefined) {
-      playPromise.then(() => {}).catch(error => {
-        console.error("Error attempting to play coffee steam video on start:", error);
-      });
+    const coffeePlayPromise = coffeeSteamVideo.play();
+    if (coffeePlayPromise !== undefined) {
+      coffeePlayPromise.catch(error => console.error("Error playing coffee steam video:", error));
     }
   }
+
   resetGameStateForStartStop();
   let storedIndex = Number(localStorage.getItem('sentenceIndex') || 0);
   sentenceIndex = storedIndex % sentences.length;
@@ -1503,15 +1307,13 @@ function startGame() {
   player.y = topOffset + (canvas.height - topOffset) - PLAYER_SIZE - 10;
   player.y = Math.max(topOffset, player.y);
   lastTime = performance.now();
-  // Pre-warm voices on start
-  // console.log("startGame: Initiating voice pre-warming...");
+  
   getVoicesReliably().then(loadedVoices => {
-      if (loadedVoices && loadedVoices.length > 0) {
-        // console.log("startGame: Voices pre-warmed successfully. Count:", loadedVoices.length, "First voice:", loadedVoices[0].name);
-      } else {
+      if (!loadedVoices || loadedVoices.length === 0) {
         console.warn("startGame: Voices NOT available or list empty after pre-warm attempt.");
       }
   }).catch(err => console.error("startGame: Error during voice pre-warming:", err));
+  
   requestAnimationFrame(gameLoop);
 }
 
@@ -1521,20 +1323,21 @@ function togglePause() {
   const pauseButton = document.getElementById('pauseBtn');
   if (isGamePaused) {
     pauseButton.textContent = 'RESUME';
-    bgmAudio.pause();
+    if (bgmAudio && !bgmAudio.paused) bgmAudio.pause();
     if (coffeeSteamVideo && !coffeeSteamVideo.paused) coffeeSteamVideo.pause();
-    window.speechSynthesis.cancel(); // Cancel any speech on pause
+    window.speechSynthesis.cancel(); 
     if (currentSentenceAudio) currentSentenceAudio.pause();
   } else {
     pauseButton.textContent = 'PAUSE';
-    bgmAudio.play().catch(e => console.error("BGM resume error:", e));
+    if (bgmAudio && bgmAudio.paused && !isMuted) { 
+        bgmAudio.play().catch(e => console.error("BGM resume error:", e));
+    }
     if (coffeeSteamVideo && coffeeSteamVideo.paused && coffeeVideoAssetReady) {
-        const playPromise = coffeeSteamVideo.play();
-        if (playPromise !== undefined) {
-            playPromise.then(() => {}).catch(error => console.error("Error resuming coffee steam video:", error));
-        }
+        coffeeSteamVideo.play().catch(error => console.error("Error resuming coffee steam video:", error));
     }
     if (currentSentenceAudio && currentSentenceAudio.paused) {
+        // Sentence audio resume should also play at full volume if it was paused
+        currentSentenceAudio.volume = 0.8; // Ensure it's audible when resumed
         currentSentenceAudio.play().catch(e => console.error("Sentence audio resume error:", e));
     }
     lastTime = performance.now(); 
@@ -1545,13 +1348,11 @@ function togglePause() {
 function stopGame() {
   isGameRunning = false; isGamePaused = false;
   document.getElementById('pauseBtn').textContent = 'PAUSE'; 
-  bgmAudio.pause();
+  if (bgmAudio) bgmAudio.pause();
   if (coffeeSteamVideo && !coffeeSteamVideo.paused) coffeeSteamVideo.pause();
-  window.speechSynthesis.cancel(); // Cancel any speech on stop
+  window.speechSynthesis.cancel(); 
   if (currentSentenceAudio) {
-      currentSentenceAudio.pause();
-      currentSentenceAudio.currentTime = 0;
-      currentSentenceAudio = null;
+      currentSentenceAudio.pause(); currentSentenceAudio.currentTime = 0; currentSentenceAudio = null;
   }
   resetGameStateForStartStop();
   ctx.clearRect(0, 0, canvas.width, canvas.height); 
@@ -1561,117 +1362,75 @@ const expandedMargin = 10;
 
 function handleCanvasInteraction(clientX, clientY, event) {
   if (!isGameRunning || isGamePaused) return;
-
   if (!isActionLocked) { 
     const isPlayBtnQuestionTouched = showPlayButtonQuestion && playButtonRectQuestion &&
-      clientX >= (playButtonRectQuestion.x - expandedMargin) &&
-      clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
-      clientY >= (playButtonRectQuestion.y - expandedMargin) &&
-      clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
-
+      clientX >= (playButtonRectQuestion.x - expandedMargin) && clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+      clientY >= (playButtonRectQuestion.y - expandedMargin) && clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
     const isPlayBtnAnswerTouched = showPlayButton && playButtonRect &&
-      clientX >= (playButtonRect.x - expandedMargin) &&
-      clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
-      clientY >= (playButtonRect.y - expandedMargin) &&
-      clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
+      clientX >= (playButtonRect.x - expandedMargin) && clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+      clientY >= (playButtonRect.y - expandedMargin) && clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
 
     if (isPlayBtnQuestionTouched) {
-      showTranslationForQuestion = true; 
-      showTranslationForAnswer = false; 
+      showTranslationForQuestion = true; showTranslationForAnswer = false; 
       if (activeWordTranslation) activeWordTranslation.show = false;
       if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-      activeWordTranslation = null;
-      isActionLocked = true;
+      activeWordTranslation = null; isActionLocked = true;
       if (currentQuestionSentenceIndex !== null) {
           window.speechSynthesis.cancel();
           playSentenceAudio(currentQuestionSentenceIndex)
               .catch(err => console.error("Error playing question sentence audio from play button:", err));
       }
-      event.preventDefault();
-      setTimeout(() => { isActionLocked = false; }, 200);
-      return; 
+      event.preventDefault(); setTimeout(() => { isActionLocked = false; }, 200); return; 
     }
-    
     if (isPlayBtnAnswerTouched) {
-      showTranslationForAnswer = true;
-      showTranslationForQuestion = false; 
+      showTranslationForAnswer = true; showTranslationForQuestion = false; 
       if (activeWordTranslation) activeWordTranslation.show = false;
       if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
-      activeWordTranslation = null;
-      isActionLocked = true;
+      activeWordTranslation = null; isActionLocked = true;
       if (currentAnswerSentenceIndex !== null) {
           window.speechSynthesis.cancel();
           playSentenceAudio(currentAnswerSentenceIndex)
               .catch(err => console.error("Error playing answer sentence audio from play button:", err));
       }
-      event.preventDefault();
-      setTimeout(() => { isActionLocked = false; }, 200);
-      return; 
+      event.preventDefault(); setTimeout(() => { isActionLocked = false; }, 200); return; 
     }
-
     if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
         for (const wordRect of centerSentenceWordRects) {
-          if (
-            clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
-            clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
-          ) {
-            // console.log(`handleCanvasInteraction: Word touched: "${wordRect.word}"`);
-            window.speechSynthesis.cancel(); // Crucial: Cancel any ongoing speech (HTML5 audio or TTS)
-            
-            speakWord(wordRect.word)
-              .then(() => { /* console.log(`handleCanvasInteraction: Successfully spoke "${wordRect.word}"`) */ })
-              .catch(err => console.error(`handleCanvasInteraction: Error speaking word "${wordRect.word}":`, err));
-            
+          if (clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
+              clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2 ) {
+            window.speechSynthesis.cancel(); 
+            speakWord(wordRect.word).catch(err => console.error(`Error speaking word "${wordRect.word}":`, err));
             if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
             if (activeWordTranslation) activeWordTranslation.show = false;
-            activeWordTranslation = null; // Reset for new translation
-            isActionLocked = true; 
-
+            activeWordTranslation = null; isActionLocked = true; 
             getWordTranslation(wordRect.word).then(translation => {
                 activeWordTranslation = {
-                    word: wordRect.word, translation: translation,
-                    x: wordRect.x, y: wordRect.y, w: wordRect.w, h: wordRect.h,
-                    lineIndex: wordRect.lineIndex, isQuestionWord: wordRect.isQuestionWord, show: true
+                    word: wordRect.word, translation: translation, x: wordRect.x, y: wordRect.y, 
+                    w: wordRect.w, h: wordRect.h, lineIndex: wordRect.lineIndex, 
+                    isQuestionWord: wordRect.isQuestionWord, show: true
                 };
                 wordTranslationTimeoutId = setTimeout(() => {
-                    if (activeWordTranslation && activeWordTranslation.word === wordRect.word) {
-                        activeWordTranslation.show = false;
-                    }
+                    if (activeWordTranslation && activeWordTranslation.word === wordRect.word) activeWordTranslation.show = false;
                 }, WORD_TRANSLATION_DURATION);
             }).catch(err => console.error("Error getting word translation:", err));
-            showTranslationForQuestion = false; 
-            showTranslationForAnswer = false;
-            event.preventDefault();
-            setTimeout(() => { isActionLocked = false; }, 300); // Slightly longer lock for word interaction
-            return; 
+            showTranslationForQuestion = false; showTranslationForAnswer = false;
+            event.preventDefault(); setTimeout(() => { isActionLocked = false; }, 300); return; 
           }
         }
     }
   }
-
   player.x = clientX - player.w / 2;
-  if (event.type === 'touchstart' || event.type === 'touchmove') {
-    player.y = clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET;
-  } else { 
-    player.y = clientY - player.h / 2;
-  }
-  
+  if (event.type === 'touchstart' || event.type === 'touchmove') player.y = clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET;
+  else player.y = clientY - player.h / 2;
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
   player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
-
   if (activeWordTranslation && activeWordTranslation.show) {
     activeWordTranslation.show = false;
-    if (wordTranslationTimeoutId) {
-        clearTimeout(wordTranslationTimeoutId);
-        wordTranslationTimeoutId = null;
-    }
+    if (wordTranslationTimeoutId) { clearTimeout(wordTranslationTimeoutId); wordTranslationTimeoutId = null; }
   }
-  showTranslationForQuestion = false; 
-  showTranslationForAnswer = false;
-
+  showTranslationForQuestion = false; showTranslationForAnswer = false;
   bullets.push({ x: player.x + player.w / 2 - 2.5, y: player.y, w: 5, h: 10, speed: 2.1 });
   sounds.shoot.play();
-  
   event.preventDefault();
 }
 
@@ -1686,41 +1445,23 @@ canvas.addEventListener('mousedown', e => {
 
 canvas.addEventListener('touchmove', e => {
   if (!isGameRunning || isGamePaused) return; 
-
   const touch = e.touches[0];
-
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
-    touch.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
-    touch.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
-    touch.clientY >= (playButtonRectQuestion.y - expandedMargin) &&
-    touch.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
-  
+    touch.clientX >= (playButtonRectQuestion.x - expandedMargin) && touch.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+    touch.clientY >= (playButtonRectQuestion.y - expandedMargin) && touch.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
   const isOverPlayBtnA = showPlayButton && playButtonRect &&
-    touch.clientX >= (playButtonRect.x - expandedMargin) &&
-    touch.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
-    touch.clientY >= (playButtonRect.y - expandedMargin) &&
-    touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-  
+    touch.clientX >= (playButtonRect.x - expandedMargin) && touch.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+    touch.clientY >= (playButtonRect.y - expandedMargin) && touch.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
   let isOverWord = false;
   if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
     for (const wordRect of centerSentenceWordRects) {
-      if (
-        touch.clientX >= wordRect.x && touch.clientX <= wordRect.x + wordRect.w &&
-        touch.clientY >= wordRect.y - wordRect.h/2 && touch.clientY <= wordRect.y + wordRect.h/2
-      ) { 
-        isOverWord = true;
-        break; 
+      if ( touch.clientX >= wordRect.x && touch.clientX <= wordRect.x + wordRect.w &&
+           touch.clientY >= wordRect.y - wordRect.h/2 && touch.clientY <= wordRect.y + wordRect.h/2 ) { 
+        isOverWord = true; break; 
       }
     }
   }
-
-  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) {
-    // If dragging over UI elements, prevent player movement and default actions.
-    // This helps avoid accidental shooting/moving when trying to interact with buttons/words.
-    event.preventDefault(); 
-    return; 
-  }
-
+  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) { event.preventDefault(); return; }
   player.x = touch.clientX - player.w / 2;
   player.y = touch.clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET; 
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
@@ -1730,35 +1471,23 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('mousemove', e => {
   if (!isGameRunning || isGamePaused) return;
-  if (e.buttons !== 1) return; // Only move if left mouse button is pressed
-
+  if (e.buttons !== 1) return; 
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
-      e.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
-      e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
-      e.clientY >= (playButtonRectQuestion.y - expandedMargin) &&
-      e.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
-  
+      e.clientX >= (playButtonRectQuestion.x - expandedMargin) && e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
+      e.clientY >= (playButtonRectQuestion.y - expandedMargin) && e.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
   const isOverPlayBtnA = showPlayButton && playButtonRect &&
-      e.clientX >= (playButtonRect.x - expandedMargin) &&
-      e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
-      e.clientY >= (playButtonRect.y - expandedMargin) &&
-      e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
-  
+      e.clientX >= (playButtonRect.x - expandedMargin) && e.clientX <= (playButtonRect.x + playButtonRect.w + expandedMargin) &&
+      e.clientY >= (playButtonRect.y - expandedMargin) && e.clientY <= (playButtonRect.y + playButtonRect.h + expandedMargin);
   let isOverWord = false;
   if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
     for (const wordRect of centerSentenceWordRects) {
-      if (
-        e.clientX >= wordRect.x && e.clientX <= wordRect.x + wordRect.w &&
-        e.clientY >= wordRect.y - wordRect.h/2 && e.clientY <= wordRect.y + wordRect.h/2
-      ) { 
-        isOverWord = true;
-        break;
+      if ( e.clientX >= wordRect.x && e.clientX <= wordRect.x + wordRect.w &&
+           e.clientY >= wordRect.y - wordRect.h/2 && e.clientY <= wordRect.y + wordRect.h/2 ) { 
+        isOverWord = true; break;
       }
     }
   }
-
-  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return; // Don't move player if mouse is over UI elements
-  
+  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return; 
   player.x = e.clientX - player.w / 2;
   player.y = e.clientY - player.h / 2; 
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
@@ -1770,4 +1499,8 @@ window.addEventListener('load', () => {
     let storedIndex = Number(localStorage.getItem('sentenceIndex') || 0);
     sentenceIndex = storedIndex % sentences.length;
     localStorage.setItem('sentenceIndex', sentenceIndex.toString());
+    
+    if (bgmFiles.length > 0) {
+        console.log("BGM object initialized on load. Path: " + bgmAudio.src);
+    }
 });
