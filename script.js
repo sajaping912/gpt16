@@ -601,29 +601,204 @@ async function getWordTranslation(word, targetLang = 'ko') {
   return `[${cleanedWord} 뜻]`;
 }
 
+// --- START: Voice loading utility ---
+let voicesPromise = null;
+let _voices = []; // Cache for voices
+
+function getVoicesReliably() {
+    // console.log("getVoicesReliably: Called.");
+    if (voicesPromise && _voices.length > 0) {
+        // console.log("getVoicesReliably: Returning cached voices, count:", _voices.length);
+        return Promise.resolve(_voices);
+    }
+    if (!voicesPromise) {
+        // console.log("getVoicesReliably: Creating new promise for voices.");
+        voicesPromise = new Promise((resolve, reject) => {
+            const tryGetAndResolveVoices = () => {
+                const currentVoices = window.speechSynthesis.getVoices();
+                if (currentVoices.length) {
+                    _voices = currentVoices; // Cache them
+                    // console.log("getVoicesReliably: Voices loaded, count:", _voices.length, _voices.map(v=>({name: v.name, lang: v.lang, default: v.default})));
+                    resolve(_voices);
+                    return true;
+                }
+                // console.log("getVoicesReliably: tryGetAndResolveVoices - no voices yet.");
+                return false;
+            };
+
+            if (tryGetAndResolveVoices()) return; // Attempt immediate fetch
+
+            if ('onvoiceschanged' in window.speechSynthesis) {
+                // console.log("getVoicesReliably: Using onvoiceschanged event listener.");
+                window.speechSynthesis.onvoiceschanged = () => {
+                    // console.log("getVoicesReliably: onvoiceschanged event fired.");
+                    if (tryGetAndResolveVoices()) {
+                        window.speechSynthesis.onvoiceschanged = null; // Clean up listener once voices are resolved
+                    } else {
+                        // console.log("getVoicesReliably: onvoiceschanged fired but still no voices, trying a small delay.");
+                         setTimeout(() => {
+                            // console.log("getVoicesReliably: setTimeout after onvoiceschanged.");
+                            if(tryGetAndResolveVoices()){
+                                window.speechSynthesis.onvoiceschanged = null;
+                            } else {
+                                console.warn("getVoicesReliably: Voices NOT loaded even after onvoiceschanged + delay.");
+                                resolve([]); // Resolve with empty if still not loaded
+                                window.speechSynthesis.onvoiceschanged = null;
+                            }
+                        }, 200); // Slightly increased delay
+                    }
+                };
+                // console.log("getVoicesReliably: Manually calling getVoices() to potentially trigger onvoiceschanged.");
+                window.speechSynthesis.getVoices(); // This call is often needed to trigger the population
+            } else {
+                // console.log("getVoicesReliably: Using polling fallback (no onvoiceschanged).");
+                let attempts = 0;
+                const maxAttempts = 20; // Try for ~4 seconds
+                const intervalId = setInterval(() => {
+                    attempts++;
+                    // console.log(`getVoicesReliably: Polling attempt ${attempts}/${maxAttempts}`);
+                    if (tryGetAndResolveVoices()) {
+                        clearInterval(intervalId);
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(intervalId);
+                        console.warn("getVoicesReliably: Voices NOT loaded after multiple polling attempts.");
+                        resolve([]);
+                    }
+                }, 200);
+            }
+        }).catch(error => {
+            console.error("Error within getVoicesReliably promise:", error);
+            voicesPromise = null; // Reset promise on error
+            _voices = [];         // Clear cache on error
+            return [];            // Return empty array to consumers on error
+        });
+    } else {
+        // console.log("getVoicesReliably: voicesPromise already exists, returning it.");
+    }
+    return voicesPromise;
+}
+// --- END: Voice loading utility ---
+
+async function getVoice(lang = 'en-US', gender = 'female') {
+  // console.log(`getVoice: Seeking voice for lang=${lang}, gender=${gender}`);
+  let availableVoices;
+  try {
+    availableVoices = await getVoicesReliably();
+  } catch (error) {
+    console.error("getVoice: Failed to load voices from getVoicesReliably:", error);
+    return null;
+  }
+  
+  if (!availableVoices || availableVoices.length === 0) {
+      console.warn("getVoice: No voices available after getVoicesReliably resolved.");
+      return null;
+  }
+  // console.log("getVoice: All available voices:", availableVoices.map(v => ({ name: v.name, lang: v.lang, default: v.default, localService: v.localService })));
+
+  // Filter by language first
+  const langNormalized = lang.toLowerCase();
+  const langVoices = availableVoices.filter(v => v.lang.toLowerCase() === langNormalized);
+
+  if (langVoices.length === 0) {
+    // console.log(`getVoice: No voices found for exact language ${langNormalized}. Trying primary language...`);
+    const primaryLang = langNormalized.split('-')[0];
+    const primaryLangVoices = availableVoices.filter(v => v.lang.toLowerCase().startsWith(primaryLang));
+    if (primaryLangVoices.length > 0) {
+        // console.log(`getVoice: Found ${primaryLangVoices.length} voices for primary lang ${primaryLang}. Using first: ${primaryLangVoices[0].name}`);
+        return primaryLangVoices[0]; // Could add gender preference here too
+    }
+    // console.log(`getVoice: No voices for primary lang ${primaryLang} either.`);
+  } else {
+    // We have voices for the exact language, now try to apply gender preference
+    if (gender === 'female') {
+        const femaleVoices = langVoices.filter(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('susan') || v.name.toLowerCase().includes('eva') || v.name.toLowerCase().includes('google us english') || v.name.toLowerCase().includes('여자') || v.name.toLowerCase().includes(' 여성'));
+        if (femaleVoices.length > 0) {
+            // console.log(`getVoice: Found ${femaleVoices.length} female voices for ${langNormalized}. Selecting first: ${femaleVoices[0].name}`);
+            return femaleVoices[0];
+        }
+    } else if (gender === 'male') {
+        const maleVoices = langVoices.filter(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('tom') || v.name.toLowerCase().includes('google us english') || v.name.toLowerCase().includes('남자') || v.name.toLowerCase().includes(' 남성'));
+        if (maleVoices.length > 0) {
+            // console.log(`getVoice: Found ${maleVoices.length} male voices for ${langNormalized}. Selecting first: ${maleVoices[0].name}`);
+            return maleVoices[0];
+        }
+    }
+    // If gender preference didn't match or wasn't specified, return the first voice for the language
+    // console.log(`getVoice: No specific gender match in ${langNormalized} voices, or gender not specified. Selecting first lang match: ${langVoices[0].name}`);
+    return langVoices[0];
+  }
+  
+  // If no language match at all, try default system voice
+  const defaultVoice = availableVoices.find(v => v.default);
+  if (defaultVoice) {
+    // console.log(`getVoice: No language match. Using system default voice: ${defaultVoice.name} (lang: ${defaultVoice.lang})`);
+    return defaultVoice;
+  }
+
+  // Absolute fallback: first voice in the list, if any
+  if (availableVoices.length > 0) {
+    // console.log(`getVoice: No language or default match. Using first available voice overall: ${availableVoices[0].name} (lang: ${availableVoices[0].lang})`);
+    return availableVoices[0];
+  }
+  
+  console.warn("getVoice: Exhausted all fallbacks. No voice found.");
+  return null;
+}
+
+
 async function speakWord(word) {
-  const cleanWord = word.replace(/[^a-zA-Z0-9]/g, "").trim(); 
-  if (!cleanWord) return;
-  let voices = window.speechSynthesis.getVoices();
-  if (!voices.length) {
-    await new Promise(resolve => {
-      window.speechSynthesis.onvoiceschanged = () => {
-        voices = window.speechSynthesis.getVoices();
+  const cleanWord = word.replace(/[^a-zA-Z0-9]/g, "").trim();
+  if (!cleanWord) {
+    // console.log("speakWord: Cleaned word is empty, skipping.");
+    return;
+  }
+
+  // console.log(`speakWord: Preparing to speak "${cleanWord}"`);
+
+  try {
+    await getVoicesReliably(); // Ensure voices are attempted to be loaded.
+  } catch (error) {
+    console.error(`speakWord: Critical error ensuring voices were loaded for word "${cleanWord}":`, error);
+    return; // Cannot proceed if voice loading itself fails.
+  }
+
+  return new Promise(async (resolve, reject) => {
+    try {
+      // window.speechSynthesis.cancel(); // This is now reliably called in handleCanvasInteraction
+
+      const utter = new window.SpeechSynthesisUtterance(cleanWord);
+      utter.lang = 'en-US'; // Set desired language for the utterance
+      utter.rate = 0.92;    // Adjusted rate
+      utter.pitch = 1.0;
+      utter.volume = 1.0;   // Ensure full volume for TTS
+
+      const voice = await getVoice('en-US', 'female');
+      if (voice) {
+        utter.voice = voice;
+        // console.log(`speakWord: Assigned voice: "${voice.name}" (lang: ${voice.lang}, default: ${voice.default}) for "${cleanWord}"`);
+      } else {
+        console.warn(`speakWord: No specific voice found for 'en-US' female for word "${cleanWord}". Browser will use its default for 'en-US' or system default.`);
+      }
+      
+      utter.onstart = () => {
+        // console.log(`speakWord: Event 'onstart' for "${cleanWord}"`);
+      };
+      utter.onend = () => {
+        // console.log(`speakWord: Event 'onend' for "${cleanWord}"`);
         resolve();
       };
-      window.speechSynthesis.getVoices();
-    });
-  }
-  return new Promise(async resolve => {
-    const utter = new window.SpeechSynthesisUtterance(cleanWord);
-    utter.lang = 'en-US';
-    utter.rate = 0.95;
-    utter.pitch = 1.0;
-    const voice = await getVoice('en-US', 'female');
-    if (voice) utter.voice = voice;
-    utter.onend = resolve;
-    utter.onerror = (event) => { console.error('SpeechSynthesisUtterance.onerror for word:', event); resolve(); };
-    window.speechSynthesis.speak(utter);
+      utter.onerror = (event) => {
+        console.error(`speakWord: Event 'onerror' for word "${cleanWord}". Error: ${event.error}`, event);
+        reject(event.error || new Error(`Unknown speech synthesis error for "${cleanWord}"`));
+      };
+      
+      // console.log(`speakWord: Calling window.speechSynthesis.speak() for "${cleanWord}" with utterance:`, utter);
+      window.speechSynthesis.speak(utter);
+
+    } catch (error) {
+        console.error(`speakWord: Exception during speakWord execution for "${cleanWord}":`, error);
+        reject(error);
+    }
   });
 }
 
@@ -1129,30 +1304,6 @@ function updateFireworks() {
 }
 
 
-async function getVoice(lang = 'en-US', gender = 'female') {
-  let voices = window.speechSynthesis.getVoices();
-  if (!voices.length) {
-    await new Promise(resolve => {
-      window.speechSynthesis.onvoiceschanged = () => {
-        voices = window.speechSynthesis.getVoices();
-        resolve();
-      };
-      window.speechSynthesis.getVoices();
-    });
-  }
-  const filtered = voices.filter(v =>
-    v.lang === lang &&
-    (gender === 'female'
-      ? v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('susan') || v.name.toLowerCase().includes('google us english')
-      : v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('tom') || v.name.toLowerCase().includes('google us english'))
-  );
-  if (filtered.length) return filtered[0];
-  const fallback = voices.filter(v => v.lang === lang);
-  if (fallback.length) return fallback[0];
-  return voices.find(v => v.default && v.lang.startsWith(lang.split('-')[0])) || voices.find(v => v.default) || voices[0];
-}
-
-
 function spawnEnemy() {
   const idx = Math.floor(Math.random() * enemyImgs.length);
   const img = enemyImgs[idx];
@@ -1352,6 +1503,15 @@ function startGame() {
   player.y = topOffset + (canvas.height - topOffset) - PLAYER_SIZE - 10;
   player.y = Math.max(topOffset, player.y);
   lastTime = performance.now();
+  // Pre-warm voices on start
+  // console.log("startGame: Initiating voice pre-warming...");
+  getVoicesReliably().then(loadedVoices => {
+      if (loadedVoices && loadedVoices.length > 0) {
+        // console.log("startGame: Voices pre-warmed successfully. Count:", loadedVoices.length, "First voice:", loadedVoices[0].name);
+      } else {
+        console.warn("startGame: Voices NOT available or list empty after pre-warm attempt.");
+      }
+  }).catch(err => console.error("startGame: Error during voice pre-warming:", err));
   requestAnimationFrame(gameLoop);
 }
 
@@ -1363,7 +1523,7 @@ function togglePause() {
     pauseButton.textContent = 'RESUME';
     bgmAudio.pause();
     if (coffeeSteamVideo && !coffeeSteamVideo.paused) coffeeSteamVideo.pause();
-    window.speechSynthesis.cancel();
+    window.speechSynthesis.cancel(); // Cancel any speech on pause
     if (currentSentenceAudio) currentSentenceAudio.pause();
   } else {
     pauseButton.textContent = 'PAUSE';
@@ -1377,33 +1537,32 @@ function togglePause() {
     if (currentSentenceAudio && currentSentenceAudio.paused) {
         currentSentenceAudio.play().catch(e => console.error("Sentence audio resume error:", e));
     }
-    lastTime = performance.now(); // Reset lastTime to avoid large delta
+    lastTime = performance.now(); 
     requestAnimationFrame(gameLoop);
   }
 }
 
 function stopGame() {
   isGameRunning = false; isGamePaused = false;
-  document.getElementById('pauseBtn').textContent = 'PAUSE'; // Reset pause button text
+  document.getElementById('pauseBtn').textContent = 'PAUSE'; 
   bgmAudio.pause();
   if (coffeeSteamVideo && !coffeeSteamVideo.paused) coffeeSteamVideo.pause();
-  window.speechSynthesis.cancel();
+  window.speechSynthesis.cancel(); // Cancel any speech on stop
   if (currentSentenceAudio) {
       currentSentenceAudio.pause();
       currentSentenceAudio.currentTime = 0;
       currentSentenceAudio = null;
   }
   resetGameStateForStartStop();
-  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas on stop
+  ctx.clearRect(0, 0, canvas.width, canvas.height); 
 }
 
-const expandedMargin = 10; // For easier touch on UI elements
+const expandedMargin = 10; 
 
 function handleCanvasInteraction(clientX, clientY, event) {
   if (!isGameRunning || isGamePaused) return;
 
-  // --- UI Interaction Logic (Play Buttons, Words) ---
-  if (!isActionLocked) { // Only allow UI interaction if not locked
+  if (!isActionLocked) { 
     const isPlayBtnQuestionTouched = showPlayButtonQuestion && playButtonRectQuestion &&
       clientX >= (playButtonRectQuestion.x - expandedMargin) &&
       clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
@@ -1430,7 +1589,7 @@ function handleCanvasInteraction(clientX, clientY, event) {
       }
       event.preventDefault();
       setTimeout(() => { isActionLocked = false; }, 200);
-      return; // UI action taken, do not proceed to player movement/shooting
+      return; 
     }
     
     if (isPlayBtnAnswerTouched) {
@@ -1447,7 +1606,7 @@ function handleCanvasInteraction(clientX, clientY, event) {
       }
       event.preventDefault();
       setTimeout(() => { isActionLocked = false; }, 200);
-      return; // UI action taken
+      return; 
     }
 
     if ((currentQuestionSentence || currentAnswerSentence) && centerSentenceWordRects.length > 0) {
@@ -1456,12 +1615,18 @@ function handleCanvasInteraction(clientX, clientY, event) {
             clientX >= wordRect.x && clientX <= wordRect.x + wordRect.w &&
             clientY >= wordRect.y - wordRect.h / 2 && clientY <= wordRect.y + wordRect.h / 2
           ) {
-            window.speechSynthesis.cancel();
-            speakWord(wordRect.word);
+            // console.log(`handleCanvasInteraction: Word touched: "${wordRect.word}"`);
+            window.speechSynthesis.cancel(); // Crucial: Cancel any ongoing speech (HTML5 audio or TTS)
+            
+            speakWord(wordRect.word)
+              .then(() => { /* console.log(`handleCanvasInteraction: Successfully spoke "${wordRect.word}"`) */ })
+              .catch(err => console.error(`handleCanvasInteraction: Error speaking word "${wordRect.word}":`, err));
+            
             if (wordTranslationTimeoutId) clearTimeout(wordTranslationTimeoutId);
             if (activeWordTranslation) activeWordTranslation.show = false;
-            activeWordTranslation = null;
+            activeWordTranslation = null; // Reset for new translation
             isActionLocked = true; 
+
             getWordTranslation(wordRect.word).then(translation => {
                 activeWordTranslation = {
                     word: wordRect.word, translation: translation,
@@ -1477,26 +1642,23 @@ function handleCanvasInteraction(clientX, clientY, event) {
             showTranslationForQuestion = false; 
             showTranslationForAnswer = false;
             event.preventDefault();
-            setTimeout(() => { isActionLocked = false; }, 200);
-            return; // UI action taken
+            setTimeout(() => { isActionLocked = false; }, 300); // Slightly longer lock for word interaction
+            return; 
           }
         }
     }
   }
 
-  // --- Player Control Logic (Movement and Shooting) ---
   player.x = clientX - player.w / 2;
-  // For touch events, adjust Y position so player is above the finger
   if (event.type === 'touchstart' || event.type === 'touchmove') {
     player.y = clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET;
-  } else { // For mouse events, player Y is centered at cursor Y
+  } else { 
     player.y = clientY - player.h / 2;
   }
   
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
   player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
 
-  // Hide word translation and full sentence translations if player moves
   if (activeWordTranslation && activeWordTranslation.show) {
     activeWordTranslation.show = false;
     if (wordTranslationTimeoutId) {
@@ -1553,12 +1715,14 @@ canvas.addEventListener('touchmove', e => {
   }
 
   if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) {
-    e.preventDefault(); 
+    // If dragging over UI elements, prevent player movement and default actions.
+    // This helps avoid accidental shooting/moving when trying to interact with buttons/words.
+    event.preventDefault(); 
     return; 
   }
 
   player.x = touch.clientX - player.w / 2;
-  player.y = touch.clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET; // Apply offset for touchmove
+  player.y = touch.clientY - player.h / 2 - PLAYER_TOUCH_Y_OFFSET; 
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
   player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
   e.preventDefault();
@@ -1566,7 +1730,7 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('mousemove', e => {
   if (!isGameRunning || isGamePaused) return;
-  if (e.buttons !== 1) return; 
+  if (e.buttons !== 1) return; // Only move if left mouse button is pressed
 
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
       e.clientX >= (playButtonRectQuestion.x - expandedMargin) &&
@@ -1593,10 +1757,10 @@ canvas.addEventListener('mousemove', e => {
     }
   }
 
-  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return; 
+  if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return; // Don't move player if mouse is over UI elements
   
   player.x = e.clientX - player.w / 2;
-  player.y = e.clientY - player.h / 2; // Mousemove does not use PLAYER_TOUCH_Y_OFFSET
+  player.y = e.clientY - player.h / 2; 
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
   player.y = Math.max(topOffset, Math.min(canvas.height - player.h, player.y));
 });
