@@ -253,7 +253,7 @@ const bgmFiles = [
 ];
 let bgmIndex = 0;
 let bgmAudio = new Audio(bgmFiles[bgmIndex]);
-bgmAudio.volume = 0.035; // <<< BGM 볼륨 수정 (기존 0.05에서 30% 감소)
+bgmAudio.volume = 0.021; // <<< BGM 볼륨 수정 (0.035에서 추가 40% 감소)
 bgmAudio.loop = true;
 
 const volumeBtn = document.getElementById('volumeBtn');
@@ -300,7 +300,7 @@ async function playSentenceAudio(index) {
 
 volumeBtn.onclick = function () {
   isMuted = !isMuted;
-  const targetVolume = isMuted ? 0 : 0.035; // <<< BGM 볼륨 수정 (기존 0.05에서 30% 감소)
+  const targetVolume = isMuted ? 0 : 0.021; // <<< BGM 볼륨 수정 (0.035에서 추가 40% 감소)
   if (bgmAudio) {
     bgmAudio.volume = targetVolume;
     // BGM이 음소거 해제되고, 게임이 실행 중이며, 일시정지 상태가 아닐 때 재생
@@ -323,7 +323,7 @@ sounds.explosion.volume = 0.05;
 
 setInterval(() => {
   if (bgmAudio) {
-    const targetVolume = isMuted ? 0 : 0.035; // <<< BGM 볼륨 수정 (기존 0.05에서 30% 감소)
+    const targetVolume = isMuted ? 0 : 0.021; // <<< BGM 볼륨 수정 (0.035에서 추가 40% 감소)
     if (bgmAudio.volume !== targetVolume) {
       bgmAudio.volume = targetVolume;
     }
@@ -1268,7 +1268,7 @@ function startGame() {
 
   bgmIndex = 0;
   bgmAudio = new Audio(bgmFiles[bgmIndex]);
-  bgmAudio.volume = isMuted ? 0 : 0.035; // <<< BGM 볼륨 수정 (기존 0.05에서 30% 감소)
+  bgmAudio.volume = isMuted ? 0 : 0.021; // <<< BGM 볼륨 수정 (0.035에서 추가 40% 감소)
   bgmAudio.loop = true;
 
   console.log('Attempting to play BGM. Source:', bgmAudio.src, 'Volume:', bgmAudio.volume, 'Loop:', bgmAudio.loop, 'Muted:', isMuted);
