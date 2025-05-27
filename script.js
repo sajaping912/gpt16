@@ -387,6 +387,7 @@ if (coffeeSteamVideo) {
 
 const PLAYER_SIZE = 50;
 const ENEMY_SIZE = 40;
+const ENEMY_MOVEMENT_SPEED_PPS = 60; // Enemy speed in Pixels Per Second (60 PPS ~ 1px/frame at 60 FPS)
 const SENTENCE_VERTICAL_ADJUSTMENT = -70;
 const ANSWER_OFFSET_Y = 60;
 const LINE_HEIGHT = 30;
@@ -1135,7 +1136,8 @@ function spawnEnemy() {
 function update(delta) {
   enemies = enemies.filter(e => e.y <= canvas.height);
   while (enemies.length < 2) spawnEnemy();
-  enemies.forEach(e => e.y += 1);
+  // enemies.forEach(e => e.y += 1); // Old frame-based movement
+  enemies.forEach(e => e.y += ENEMY_MOVEMENT_SPEED_PPS * (delta / 1000.0)); // New delta-time based movement
   bullets = bullets.filter(b => b.y + b.h > 0).map(b => { b.y -= b.speed; return b; });
   enemyBullets = enemyBullets.filter(b => b.y < canvas.height).map(b => { b.y += b.speed; return b; });
   bullets.forEach((b, bi) => {
@@ -1340,7 +1342,7 @@ function togglePause() {
         currentSentenceAudio.volume = 0.8; // Ensure it's audible when resumed
         currentSentenceAudio.play().catch(e => console.error("Sentence audio resume error:", e));
     }
-    lastTime = performance.now();
+    lastTime = performance.now(); // Reset lastTime when resuming to avoid large delta
     requestAnimationFrame(gameLoop);
   }
 }
