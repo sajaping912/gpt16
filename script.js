@@ -1471,7 +1471,8 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('mousemove', e => {
   if (!isGameRunning || isGamePaused) return;
-  if (e.buttons !== 1) return;
+  // if (e.buttons !== 1) return; // 이 줄을 주석 처리하여 마우스 버튼 상태와 관계없이 움직이도록 합니다.
+
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
       e.clientX >= (playButtonRectQuestion.x - expandedMargin) && e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
       e.clientY >= (playButtonRectQuestion.y - expandedMargin) && e.clientY <= (playButtonRectQuestion.y + playButtonRectQuestion.h + expandedMargin);
@@ -1487,7 +1488,9 @@ canvas.addEventListener('mousemove', e => {
       }
     }
   }
+  // 플레이 버튼이나 단어 위에 마우스가 있으면 비행기 이동 및 총알 발사 방지
   if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return;
+
   player.x = e.clientX - player.w / 2;
   player.y = e.clientY - player.h / 2;
   player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
