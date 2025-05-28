@@ -248,6 +248,11 @@ const enemyImgs = [
   return img;
 });
 
+// --- START: Bullet image loading ---
+const bulletImg = new Image();
+bulletImg.src = 'images/bubble_bullet.png';
+// --- END: Bullet image loading ---
+
 const bgmFiles = [
   'sounds/background.mp3'
 ];
@@ -334,7 +339,9 @@ setInterval(() => {
 
 // Asset 로딩 관리
 let allAssetsReady = false;
-let assetsToLoad = 1 + enemyImgs.length;
+// --- START: Modified assetsToLoad for bulletImg ---
+let assetsToLoad = 1 + enemyImgs.length + 1; // Player + Enemies + Bullet
+// --- END: Modified assetsToLoad for bulletImg ---
 let loadedAssetCount = 0;
 let coffeeVideoAssetReady = false;
 
@@ -373,6 +380,11 @@ enemyImgs.forEach(img => {
   img.onerror = () => { console.error(`Failed to load enemy image: ${img.src}`); assetLoaded(); };
 });
 
+// --- START: Add bulletImg to asset loading ---
+bulletImg.onload = assetLoaded;
+bulletImg.onerror = () => { console.error("Failed to load bullet image."); assetLoaded(); };
+// --- END: Add bulletImg to asset loading ---
+
 if (coffeeSteamVideo) {
   coffeeSteamVideo.oncanplaythrough = coffeeVideoReady;
   coffeeSteamVideo.onerror = coffeeVideoError;
@@ -388,6 +400,11 @@ if (coffeeSteamVideo) {
 const PLAYER_SIZE = 50;
 const ENEMY_SIZE = 40;
 const ENEMY_MOVEMENT_SPEED_PPS = 60; // Enemy speed in Pixels Per Second (60 PPS ~ 1px/frame at 60 FPS)
+// --- START: Bullet constants ---
+const BULLET_WIDTH = 20;
+const BULLET_HEIGHT = 20;
+const BULLET_SPEED_PPS = 200; // Pixels per second for bullet movement
+// --- END: Bullet constants ---
 const SENTENCE_VERTICAL_ADJUSTMENT = -70;
 const ANSWER_OFFSET_Y = 60;
 const LINE_HEIGHT = 30;
@@ -1137,10 +1154,17 @@ function spawnEnemy() {
 function update(delta) {
   enemies = enemies.filter(e => e.y <= canvas.height);
   while (enemies.length < 2) spawnEnemy();
-  // enemies.forEach(e => e.y += 1); // Old frame-based movement
-  enemies.forEach(e => e.y += ENEMY_MOVEMENT_SPEED_PPS * (delta / 1000.0)); // New delta-time based movement
-  bullets = bullets.filter(b => b.y + b.h > 0).map(b => { b.y -= b.speed; return b; });
-  enemyBullets = enemyBullets.filter(b => b.y < canvas.height).map(b => { b.y += b.speed; return b; });
+  enemies.forEach(e => e.y += ENEMY_MOVEMENT_SPEED_PPS * (delta / 1000.0));
+
+  // --- START: Updated bullet movement ---
+  bullets = bullets.filter(b => b.y + b.h > 0);
+  bullets.forEach(b => {
+    b.y -= BULLET_SPEED_PPS * (delta / 1000.0);
+  });
+  // --- END: Updated bullet movement ---
+
+  enemyBullets = enemyBullets.filter(b => b.y < canvas.height).map(b => { b.y += b.speed; return b; }); // Assuming enemy bullets still use per-frame speed
+
   bullets.forEach((b, bi) => {
     enemies.forEach((e, ei) => {
       if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
@@ -1206,8 +1230,17 @@ function draw() {
       ctx.drawImage(e.img, e.x, e.y, ENEMY_SIZE, ENEMY_SIZE);
     }
   });
-  ctx.fillStyle = 'red';
-  bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+  // --- START: Draw bullets as images ---
+  bullets.forEach(b => {
+    if (b.img && b.img.complete && b.img.naturalWidth > 0) {
+      ctx.drawImage(b.img, b.x, b.y, b.w, b.h);
+    }
+    // Optional: else draw a fallback rectangle if image not loaded
+    // else { ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, b.w, b.h); }
+  });
+  // --- END: Draw bullets as images ---
+
   const previousGlobalCenterAlpha = centerAlpha;
   if (sentenceActive && fireworks && fireworksState) {
     if (fireworksState.roleOfNewSentence === 'answer' && currentQuestionSentence) {
@@ -1436,7 +1469,16 @@ function handleCanvasInteraction(clientX, clientY, event) {
     if (wordTranslationTimeoutId) { clearTimeout(wordTranslationTimeoutId); wordTranslationTimeoutId = null; }
   }
   showTranslationForQuestion = false; showTranslationForAnswer = false;
-  bullets.push({ x: player.x + player.w / 2 - 2.5, y: player.y, w: 5, h: 10, speed: 2.1 });
+
+  // --- START: Modified bullet creation ---
+  bullets.push({
+    x: player.x + player.w / 2 - BULLET_WIDTH / 2,
+    y: player.y,
+    w: BULLET_WIDTH,
+    h: BULLET_HEIGHT,
+    img: bulletImg
+  });
+  // --- END: Modified bullet creation ---
   sounds.shoot.play();
   event.preventDefault();
 }
