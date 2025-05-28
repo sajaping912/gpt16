@@ -400,11 +400,28 @@ if (coffeeSteamVideo) {
 const PLAYER_SIZE = 50;
 const ENEMY_SIZE = 40;
 const ENEMY_MOVEMENT_SPEED_PPS = 60; // Enemy speed in Pixels Per Second (60 PPS ~ 1px/frame at 60 FPS)
-// --- START: Bullet constants ---
-const BULLET_WIDTH = 20;
-const BULLET_HEIGHT = 20;
-const BULLET_SPEED_PPS = 200; // Pixels per second for bullet movement
-// --- END: Bullet constants ---
+
+// --- START: Bullet (Bubble) constants ---
+// const BULLET_WIDTH = 20; // 이전: 고정 너비 -> 랜덤 크기로 대체
+// const BULLET_HEIGHT = 20; // 이전: 고정 높이 -> 랜덤 크기로 대체
+// const BULLET_SPEED_PPS = 200; // 이전: 고정 속도 -> 비눗방울별 속성으로 대체
+
+const MIN_BUBBLE_SIZE = 15; // 비눗방울 최소 크기
+const MAX_BUBBLE_SIZE = 35; // 비눗방울 최대 크기
+
+const BUBBLE_BASE_SPEED_Y_PPS = -120; // 기본 수직 상승 속도 (음수 Y 방향)
+const BUBBLE_SPEED_Y_VARIATION_PPS = 40; // 수직 상승 속도 변화량
+
+const BUBBLE_SWAY_FREQUENCY_MIN = 1.5; // 수평 흔들림 최소 빈도 (초당 라디안)
+const BUBBLE_SWAY_FREQUENCY_MAX = 3.5; // 수평 흔들림 최대 빈도
+
+// 흔들림 진폭은 비눗방울 크기에 비례
+const BUBBLE_SWAY_AMPLITUDE_FACTOR_MIN = 0.3; // 비눗방울 크기 대비 최소 진폭 비율
+const BUBBLE_SWAY_AMPLITUDE_FACTOR_MAX = 0.8; // 비눗방울 크기 대비 최대 진폭 비율
+
+const BUBBLE_HORIZONTAL_DRIFT_PPS_MAX = 25; // 전체적인 수평 이동(바람) 최대 속도 (초당 픽셀)
+// --- END: Bullet (Bubble) constants ---
+
 const SENTENCE_VERTICAL_ADJUSTMENT = -70;
 const ANSWER_OFFSET_Y = 60;
 const LINE_HEIGHT = 30;
@@ -413,7 +430,7 @@ const PLAYER_TOUCH_Y_OFFSET = 15;
 let player = { x: 0, y: 0, w: PLAYER_SIZE, h: PLAYER_SIZE };
 let bullets = [];
 let enemies = [];
-let enemyBullets = [];
+let enemyBullets = []; // 이 변수는 현재 게임 로직에서 적이 총알을 발사하지 않으므로 사용되지 않지만, 향후 확장을 위해 남겨둘 수 있습니다.
 let isGameRunning = false;
 let isGamePaused = false;
 let lastTime = 0;
@@ -1156,12 +1173,28 @@ function update(delta) {
   while (enemies.length < 2) spawnEnemy();
   enemies.forEach(e => e.y += ENEMY_MOVEMENT_SPEED_PPS * (delta / 1000.0));
 
-  // --- START: Updated bullet movement ---
-  bullets = bullets.filter(b => b.y + b.h > 0);
+  // --- START: Updated bullet (bubble) movement ---
+  bullets = bullets.filter(b => b.y + b.h > 0); // 화면 위로 벗어난 비눗방울 제거
   bullets.forEach(b => {
-    b.y -= BULLET_SPEED_PPS * (delta / 1000.0);
+    b.timeAlive += delta; // 밀리초 단위 시간 누적
+    const deltaTimeSeconds = delta / 1000.0; // 초 단위 시간 변화량
+
+    // 수직 운동
+    b.y += b.velocityY * deltaTimeSeconds;
+
+    // 수평 운동
+    // 1. 바람에 의한 기준 X좌표(baseX) 이동
+    b.baseX += b.driftXPerSecond * deltaTimeSeconds;
+
+    // 2. 기준 X좌표(baseX)를 중심으로 하는 좌우 흔들림(Sway) 계산
+    const swayOffset = Math.sin( (b.timeAlive / 1000.0) * b.swayFrequency + b.swayPhaseOffset ) * b.swayAmplitude;
+    b.x = b.baseX + swayOffset; // 최종 X좌표는 이동된 기준점에 흔들림을 더함
+    
+    // (선택 사항) 비눗방울이 화면 좌우로 너무 멀리 벗어나는 것을 방지하려면 아래 주석 해제
+    // if (b.x < 0 - b.w) b.x = canvas.width; // 왼쪽으로 넘어가면 오른쪽에서
+    // if (b.x > canvas.width) b.x = 0 - b.w; // 오른쪽으로 넘어가면 왼쪽에서
   });
-  // --- END: Updated bullet movement ---
+  // --- END: Updated bullet (bubble) movement ---
 
   enemyBullets = enemyBullets.filter(b => b.y < canvas.height).map(b => { b.y += b.speed; return b; }); // Assuming enemy bullets still use per-frame speed
 
@@ -1231,7 +1264,7 @@ function draw() {
     }
   });
 
-  // --- START: Draw bullets as images ---
+  // --- START: Draw bullets (bubbles) as images ---
   bullets.forEach(b => {
     if (b.img && b.img.complete && b.img.naturalWidth > 0) {
       ctx.drawImage(b.img, b.x, b.y, b.w, b.h);
@@ -1239,7 +1272,7 @@ function draw() {
     // Optional: else draw a fallback rectangle if image not loaded
     // else { ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, b.w, b.h); }
   });
-  // --- END: Draw bullets as images ---
+  // --- END: Draw bullets (bubbles) as images ---
 
   const previousGlobalCenterAlpha = centerAlpha;
   if (sentenceActive && fireworks && fireworksState) {
@@ -1470,15 +1503,32 @@ function handleCanvasInteraction(clientX, clientY, event) {
   }
   showTranslationForQuestion = false; showTranslationForAnswer = false;
 
-  // --- START: Modified bullet creation ---
+  // --- START: Modified bullet (bubble) creation ---
+  const size = MIN_BUBBLE_SIZE + Math.random() * (MAX_BUBBLE_SIZE - MIN_BUBBLE_SIZE);
+  const spawnX = player.x + player.w / 2 - size / 2; // 플레이어 중앙에서 발사
+
   bullets.push({
-    x: player.x + player.w / 2 - BULLET_WIDTH / 2,
-    y: player.y,
-    w: BULLET_WIDTH,
-    h: BULLET_HEIGHT,
-    img: bulletImg
+    x: spawnX,
+    y: player.y, // 플레이어 상단에서 발사
+    w: size,
+    h: size,
+    img: bulletImg,
+    
+    timeAlive: 0, // 비눗방울 존재 시간 (흔들림 계산용)
+    
+    // 수직 운동 속성
+    velocityY: BUBBLE_BASE_SPEED_Y_PPS + (Math.random() - 0.5) * 2 * BUBBLE_SPEED_Y_VARIATION_PPS,
+    
+    // 수평 흔들림 속성
+    baseX: spawnX, // 흔들림의 기준 X 좌표 (이 값 자체가 바람에 의해 이동)
+    swayFrequency: BUBBLE_SWAY_FREQUENCY_MIN + Math.random() * (BUBBLE_SWAY_FREQUENCY_MAX - BUBBLE_SWAY_FREQUENCY_MIN),
+    swayAmplitude: size * (BUBBLE_SWAY_AMPLITUDE_FACTOR_MIN + Math.random() * (BUBBLE_SWAY_AMPLITUDE_FACTOR_MAX - BUBBLE_SWAY_AMPLITUDE_FACTOR_MIN)),
+    swayPhaseOffset: Math.random() * Math.PI * 2, // 흔들림 주기의 시작 위상을 무작위로 설정
+
+    // 전체적인 수평 이동(바람) 속성
+    driftXPerSecond: (Math.random() - 0.5) * 2 * BUBBLE_HORIZONTAL_DRIFT_PPS_MAX,
   });
-  // --- END: Modified bullet creation ---
+  // --- END: Modified bullet (bubble) creation ---
   sounds.shoot.play();
   event.preventDefault();
 }
