@@ -237,11 +237,11 @@ const playerImg = new Image();
 playerImg.src = 'images/player.png';
 
 const enemyImgs = [
-  'images/enemy1.png',
-  'images/enemy2.png',
-  'images/enemy3.png',
-  'images/enemy4.png',
-  'images/enemy5.png'
+  'images/enemy1.png', // 0
+  'images/enemy2.png', // 1 (coffee cup)
+  'images/enemy3.png', // 2 (cosmos)
+  'images/enemy4.png', // 3 (maple leaf)
+  'images/enemy5.png'  // 4
 ].map(src => {
   const img = new Image();
   img.src = src;
@@ -1165,13 +1165,76 @@ function spawnEnemy() {
   const x = Math.random() * (canvas.width - ENEMY_SIZE);
   const spawnYMax = canvas.height * 0.2;
   const y = topOffset + Math.random() * spawnYMax + 20;
-  enemies.push({ x, y, w: ENEMY_SIZE, h: ENEMY_SIZE, img, shot: false, imgIndex: idx });
+
+  let enemy = {
+    x, y, w: ENEMY_SIZE, h: ENEMY_SIZE, img, shot: false, imgIndex: idx,
+    baseY: y, // Base Y for controlled descent + flutter
+    initialX: x, // Base X for controlled drift + sway
+    rotation: 0 // Default rotation
+  };
+
+  // imgIndex 2 is enemy3.png (Cosmos)
+  // imgIndex 3 is enemy4.png (Maple Leaf)
+  if (idx === 3) { // Maple Leaf (enemy4.png)
+    enemy.swayAngle = Math.random() * Math.PI * 2;
+    enemy.swaySpeed = (Math.random() * 2 + 1.5) * (Math.random() > 0.5 ? 1 : -1); // 1.5 to 3.5 rad/s
+    enemy.swayAmplitude = Math.random() * 20 + 20; // 20 to 40 pixels
+    enemy.driftXPerSecond = (Math.random() - 0.5) * 60; // -30 to 30 px/s
+    enemy.flutterAngle = Math.random() * Math.PI * 2;
+    enemy.flutterSpeed = Math.random() * 5 + 3; // 3 to 8 rad/s for flutter
+    enemy.flutterAmplitude = Math.random() * 3 + 3; // 3 to 6 pixels vertical flutter
+  } else if (idx === 2) { // Cosmos Flower (enemy3.png)
+    enemy.rotationSpeed = (Math.random() * 0.8 + 0.4) * (Math.random() > 0.5 ? 1 : -1); // 0.4 to 1.2 rad/s
+    enemy.driftXPerSecond = (Math.random() - 0.5) * 20; // -10 to 10 px/s
+    enemy.swayAngle = Math.random() * Math.PI * 2;
+    enemy.swaySpeed = (Math.random() * 0.8 + 0.4); // 0.4 to 1.2 rad/s
+    enemy.swayAmplitude = Math.random() * 10 + 5; // 5 to 15 pixels
+  }
+  enemies.push(enemy);
 }
 
 function update(delta) {
-  enemies = enemies.filter(e => e.y <= canvas.height);
+  enemies = enemies.filter(e => e.y <= canvas.height + e.h); // Keep on screen a bit longer
   while (enemies.length < 2) spawnEnemy();
-  enemies.forEach(e => e.y += ENEMY_MOVEMENT_SPEED_PPS * (delta / 1000.0));
+
+  enemies.forEach(e => {
+    const deltaTimeSeconds = delta / 1000.0;
+
+    // Update common base vertical position
+    e.baseY += ENEMY_MOVEMENT_SPEED_PPS * deltaTimeSeconds;
+    
+    let newX = e.x; 
+    let newY = e.baseY;
+
+    if (e.imgIndex === 3) { // Maple Leaf (enemy4.png)
+      e.initialX += e.driftXPerSecond * deltaTimeSeconds;
+      e.swayAngle += e.swaySpeed * deltaTimeSeconds;
+      newX = e.initialX + Math.sin(e.swayAngle) * e.swayAmplitude;
+      
+      // Tilting rotation based on sway for the leaf
+      e.rotation = Math.sin(e.swayAngle * 0.7) * 0.7; // Max tilt ~40 degrees
+
+      // Vertical flutter
+      e.flutterAngle += e.flutterSpeed * deltaTimeSeconds;
+      newY = e.baseY + Math.sin(e.flutterAngle) * e.flutterAmplitude;
+
+    } else if (e.imgIndex === 2) { // Cosmos Flower (enemy3.png)
+      e.initialX += e.driftXPerSecond * deltaTimeSeconds;
+      e.rotation += e.rotationSpeed * deltaTimeSeconds; // Continuous rotation
+      
+      // Gentle sway for cosmos
+      e.swayAngle += e.swaySpeed * deltaTimeSeconds;
+      newX = e.initialX + Math.sin(e.swayAngle) * e.swayAmplitude;
+      // newY is e.baseY, which is correct (no additional flutter for cosmos)
+    }
+    // For other enemies (imgIndex 0, 1, 4), newX remains e.x (their initial spawn x) 
+    // and newY is e.baseY. This makes them fall straight down from their spawn x-coordinate.
+    // Coffee cup (imgIndex 1) also falls straight based on this.
+    
+    e.x = newX;
+    e.y = newY;
+  });
+
 
   // --- START: Updated bullet (bubble) movement ---
   bullets = bullets.filter(b => b.y + b.h > 0); // 화면 위로 벗어난 비눗방울 제거
@@ -1190,9 +1253,6 @@ function update(delta) {
     const swayOffset = Math.sin( (b.timeAlive / 1000.0) * b.swayFrequency + b.swayPhaseOffset ) * b.swayAmplitude;
     b.x = b.baseX + swayOffset; // 최종 X좌표는 이동된 기준점에 흔들림을 더함
     
-    // (선택 사항) 비눗방울이 화면 좌우로 너무 멀리 벗어나는 것을 방지하려면 아래 주석 해제
-    // if (b.x < 0 - b.w) b.x = canvas.width; // 왼쪽으로 넘어가면 오른쪽에서
-    // if (b.x > canvas.width) b.x = 0 - b.w; // 오른쪽으로 넘어가면 왼쪽에서
   });
   // --- END: Updated bullet (bubble) movement ---
 
@@ -1227,26 +1287,38 @@ function update(delta) {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
+
   enemies.forEach(e => {
-    if (e.imgIndex === 1) {
-      // 커피잔은 회전 없이 기본 렌더링
+    if (e.imgIndex === 3) { // Maple Leaf (enemy4.png) - Draw with rotation
+      ctx.save();
+      ctx.translate(e.x + e.w / 2, e.y + e.h / 2);
+      ctx.rotate(e.rotation);
+      ctx.drawImage(e.img, -e.w / 2, -e.h / 2, e.w, e.h);
+      ctx.restore();
+    } else if (e.imgIndex === 2) { // Cosmos Flower (enemy3.png) - Draw with rotation
+      ctx.save();
+      ctx.translate(e.x + e.w / 2, e.y + e.h / 2);
+      ctx.rotate(e.rotation);
+      ctx.drawImage(e.img, -e.w / 2, -e.h / 2, e.w, e.h);
+      ctx.restore();
+    } else if (e.imgIndex === 1) { // Coffee cup (enemy2.png)
       const scaleFactor = 1.3;
-      const enlargedWidth = ENEMY_SIZE * scaleFactor; 
-      const enlargedHeight = ENEMY_SIZE * scaleFactor;
-      const enlargedX = e.x - (enlargedWidth - ENEMY_SIZE) / 2; 
-      const enlargedY = e.y - (enlargedHeight - ENEMY_SIZE) / 2;
+      const enlargedWidth = e.w * scaleFactor; 
+      const enlargedHeight = e.h * scaleFactor;
+      const enlargedX = e.x - (enlargedWidth - e.w) / 2; 
+      const enlargedY = e.y - (enlargedHeight - e.h) / 2;
       ctx.drawImage(e.img, enlargedX, enlargedY, enlargedWidth, enlargedHeight);
       
       if (coffeeSteamVideo && coffeeVideoAssetReady && coffeeSteamVideo.readyState >= HTMLVideoElement.HAVE_CURRENT_DATA) {
         const videoAspectRatio = (coffeeSteamVideo.videoWidth > 0 && coffeeSteamVideo.videoHeight > 0) ? coffeeSteamVideo.videoWidth / coffeeSteamVideo.videoHeight : 1;
         let steamWidth = enlargedWidth * 1.5; let steamHeight = steamWidth / videoAspectRatio;
-        const baseX = enlargedX + (enlargedWidth - steamWidth) / 2 - 4; // 최종적으로 왼쪽으로 4px 이동
-        const baseYOffset = steamHeight * 0.6; const additionalYOffset = 3;
+        const baseX = enlargedX + (enlargedWidth - steamWidth) / 2 - 4;
+        const baseYOffset = steamHeight * 0.6; const additionalYOffset = 5; 
         const baseY = enlargedY - baseYOffset - additionalYOffset;
         const steamInstances = [
           { offsetXRatio: 0,    offsetYRatio: 0,     scale: 1.0, alpha: 0.6 },
-          { offsetXRatio: -0.15 * 0.56, offsetYRatio: -0.1,  scale: 0.9, alpha: 0.45 }, // 좌우 폭 30% 추가 감소
-          { offsetXRatio: 0.15 * 0.56,  offsetYRatio: -0.05, scale: 1.1, alpha: 0.45 }  // 좌우 폭 30% 추가 감소
+          { offsetXRatio: -0.15 * 0.56, offsetYRatio: -0.1,  scale: 0.9, alpha: 0.45 },
+          { offsetXRatio: 0.15 * 0.56,  offsetYRatio: -0.05, scale: 1.1, alpha: 0.45 } 
         ];
         steamInstances.forEach(instance => {
           ctx.save();
@@ -1259,18 +1331,17 @@ function draw() {
           ctx.restore();
         });
       }
-    } else {
-      ctx.drawImage(e.img, e.x, e.y, ENEMY_SIZE, ENEMY_SIZE);
+    } else { // Default drawing for other enemies (e.g., enemy1.png, enemy5.png)
+      ctx.drawImage(e.img, e.x, e.y, e.w, e.h);
     }
   });
+
 
   // --- START: Draw bullets (bubbles) as images ---
   bullets.forEach(b => {
     if (b.img && b.img.complete && b.img.naturalWidth > 0) {
       ctx.drawImage(b.img, b.x, b.y, b.w, b.h);
     }
-    // Optional: else draw a fallback rectangle if image not loaded
-    // else { ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, b.w, b.h); }
   });
   // --- END: Draw bullets (bubbles) as images ---
 
@@ -1570,7 +1641,6 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('mousemove', e => {
   if (!isGameRunning || isGamePaused) return;
-  // if (e.buttons !== 1) return; // 이 줄을 주석 처리하여 마우스 버튼 상태와 관계없이 움직이도록 합니다.
 
   const isOverPlayBtnQ = showPlayButtonQuestion && playButtonRectQuestion &&
       e.clientX >= (playButtonRectQuestion.x - expandedMargin) && e.clientX <= (playButtonRectQuestion.x + playButtonRectQuestion.w + expandedMargin) &&
@@ -1587,7 +1657,6 @@ canvas.addEventListener('mousemove', e => {
       }
     }
   }
-  // 플레이 버튼이나 단어 위에 마우스가 있으면 비행기 이동 및 총알 발사 방지
   if (isOverPlayBtnQ || isOverPlayBtnA || isOverWord) return;
 
   player.x = e.clientX - player.w / 2;
