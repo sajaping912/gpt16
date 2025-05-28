@@ -568,7 +568,8 @@ async function getWordTranslation(word, targetLang = 'ko') {
       "taken": "가져간", "garden": "정원",
       "back": "뒤로", "safely": "안전하게",
       "carry": "나르다", "superhero": "슈퍼히어로", "backpack": "배낭",
-      "couldnt": "할 수 없었다", "paper": "종이",
+      "couldnt": "할 수 없었다",
+      "paper": "종이",
       "show": "보여주다", "puppet": "인형",
       "boots": "장화", "missing": "사라진",
       "race": "경주",
@@ -1171,20 +1172,24 @@ function draw() {
   ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
   enemies.forEach(e => {
     if (e.imgIndex === 1) {
+      // 커피잔은 회전 없이 기본 렌더링
       const scaleFactor = 1.3;
-      const enlargedWidth = ENEMY_SIZE * scaleFactor; const enlargedHeight = ENEMY_SIZE * scaleFactor;
-      const enlargedX = e.x - (enlargedWidth - ENEMY_SIZE) / 2; const enlargedY = e.y - (enlargedHeight - ENEMY_SIZE) / 2;
+      const enlargedWidth = ENEMY_SIZE * scaleFactor; 
+      const enlargedHeight = ENEMY_SIZE * scaleFactor;
+      const enlargedX = e.x - (enlargedWidth - ENEMY_SIZE) / 2; 
+      const enlargedY = e.y - (enlargedHeight - ENEMY_SIZE) / 2;
       ctx.drawImage(e.img, enlargedX, enlargedY, enlargedWidth, enlargedHeight);
+      
       if (coffeeSteamVideo && coffeeVideoAssetReady && coffeeSteamVideo.readyState >= HTMLVideoElement.HAVE_CURRENT_DATA) {
         const videoAspectRatio = (coffeeSteamVideo.videoWidth > 0 && coffeeSteamVideo.videoHeight > 0) ? coffeeSteamVideo.videoWidth / coffeeSteamVideo.videoHeight : 1;
-        let steamWidth = enlargedWidth * 0.7; let steamHeight = steamWidth / videoAspectRatio;
-        const baseX = enlargedX + (enlargedWidth - steamWidth) / 2;
-        const baseYOffset = steamHeight * 0.65; const additionalYOffset = 30;
+        let steamWidth = enlargedWidth * 1.5; let steamHeight = steamWidth / videoAspectRatio;
+        const baseX = enlargedX + (enlargedWidth - steamWidth) / 2 - 4; // 최종적으로 왼쪽으로 4px 이동
+        const baseYOffset = steamHeight * 0.6; const additionalYOffset = 10;
         const baseY = enlargedY - baseYOffset - additionalYOffset;
         const steamInstances = [
           { offsetXRatio: 0,    offsetYRatio: 0,     scale: 1.0, alpha: 0.6 },
-          { offsetXRatio: -0.15, offsetYRatio: -0.1,  scale: 0.9, alpha: 0.45 },
-          { offsetXRatio: 0.15,  offsetYRatio: -0.05, scale: 1.1, alpha: 0.45 }
+          { offsetXRatio: -0.15 * 0.56, offsetYRatio: -0.1,  scale: 0.9, alpha: 0.45 }, // 좌우 폭 30% 추가 감소
+          { offsetXRatio: 0.15 * 0.56,  offsetYRatio: -0.05, scale: 1.1, alpha: 0.45 }  // 좌우 폭 30% 추가 감소
         ];
         steamInstances.forEach(instance => {
           ctx.save();
