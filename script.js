@@ -1241,7 +1241,7 @@ function draw() {
         const videoAspectRatio = (coffeeSteamVideo.videoWidth > 0 && coffeeSteamVideo.videoHeight > 0) ? coffeeSteamVideo.videoWidth / coffeeSteamVideo.videoHeight : 1;
         let steamWidth = enlargedWidth * 1.5; let steamHeight = steamWidth / videoAspectRatio;
         const baseX = enlargedX + (enlargedWidth - steamWidth) / 2 - 4; // 최종적으로 왼쪽으로 4px 이동
-        const baseYOffset = steamHeight * 0.6; const additionalYOffset = 10;
+        const baseYOffset = steamHeight * 0.6; const additionalYOffset = 3;
         const baseY = enlargedY - baseYOffset - additionalYOffset;
         const steamInstances = [
           { offsetXRatio: 0,    offsetYRatio: 0,     scale: 1.0, alpha: 0.6 },
